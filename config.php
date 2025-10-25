@@ -1,7 +1,11 @@
 <?php
 // config.php
-session_start();
 
+#Start session only if not already active
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+#Database configuration
 define('DB_HOST', '127.0.0.1');
 define('DB_NAME', 'studentregisterationsystem');
 define('DB_USER', 'root');
@@ -19,21 +23,27 @@ try {
         ]
     );
 } catch (Exception $e) {
-    // For production, show a generic message; for dev we show the error
+    // Show minimal info in production; full info for dev
     die("Database connection failed: " . htmlspecialchars($e->getMessage()));
 }
 
+// ✅ Require user login
 function require_login() {
     if (empty($_SESSION['user'])) {
         header('Location: login.php');
         exit;
     }
 }
+
+// ✅ Require admin privilege
 function require_admin() {
     require_login();
-    if (!isset($_SESSION['user']['Role']) || $_SESSION['user']['Role'] !== 'Admin') {
+
+    // Be flexible with case (Admin / admin)
+    $role = $_SESSION['user']['Role'] ?? '';
+    if (strcasecmp($role, 'Admin') !== 0) {
         http_response_code(403);
-        echo "Forbidden - admin only";
+        echo "Forbidden — Admin access only.";
         exit;
     }
 }
