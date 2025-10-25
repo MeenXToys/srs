@@ -51,14 +51,6 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 
     <?php if ($flash): ?><div class="flash"><?= e($flash) ?></div><?php endif; ?>
 
-    <div style="margin:12px 0;">
-      <a class="btn" href="departments.php">+ Add Department</a>
-      <a class="btn" href="courses.php">+ Add Course</a>
-      <a class="btn" href="classes.php">+ Add Class</a>
-      <a class="btn" href="../timetable.php" target="_blank">Change Timetable (open editor)</a>
-      <a class="btn btn-warning" href="students_manage.php">Edit Student Data</a>
-    </div>
-
     <div class="stat-grid">
       <div class="stat-card">
         <div class="label">Total registered students</div>
