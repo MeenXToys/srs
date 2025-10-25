@@ -2,11 +2,16 @@
 require_once 'config.php';
 require_login();
 
-$stmt = $pdo->prepare("SELECT u.UserID, u.Email, u.Role, s.FullName, s.IC_Number, s.Phone, s.Semester, c.Class_Name
-                       FROM `user` u
-                       LEFT JOIN student s ON s.UserID = u.UserID
-                       LEFT JOIN class c ON c.ClassID = s.ClassID
-                       WHERE u.UserID = ?");
+$stmt = $pdo->prepare("SELECT 
+    s.FullName, 
+    c.Semester, 
+    c.Class_Name, 
+    u.Email
+FROM student s
+LEFT JOIN class c ON s.ClassID = c.ClassID
+LEFT JOIN user u ON s.UserID = u.UserID
+WHERE u.UserID = ?");
+
 $stmt->execute([$_SESSION['user']['UserID']]);
 $profile = $stmt->fetch() ?: [];
 ?>

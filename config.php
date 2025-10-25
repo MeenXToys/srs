@@ -47,3 +47,10 @@ function require_admin() {
         exit;
     }
 }
+
+// Global HTML escape helper (define only once)
+if (!function_exists('e')) {
+    function e($s) {
+        return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}

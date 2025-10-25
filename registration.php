@@ -1,22 +1,22 @@
 <?php
-// registration.php (DB-driven, uses schema from your SQL dump)
+// registration.php - aligned with V4 database schema
 require_once __DIR__ . '/config.php';
 global $pdo;
 
 $errors = [];
 $old = [];
 
-// Load dropdowns from DB
+// Load dropdown options
 try {
     $departments = $pdo->query("SELECT DepartmentID, Dept_Code, Dept_Name FROM department ORDER BY Dept_Name")->fetchAll();
     $courses     = $pdo->query("SELECT CourseID, Course_Code, Course_Name, DepartmentID FROM course ORDER BY Course_Name")->fetchAll();
     $semesters   = $pdo->query("SELECT DISTINCT Semester FROM class ORDER BY Semester")->fetchAll();
     $classes     = $pdo->query("SELECT ClassID, Class_Name, Semester, CourseID FROM class ORDER BY Class_Name")->fetchAll();
 } catch (Exception $e) {
-    die("Database error loading dropdowns: " . htmlspecialchars($e->getMessage()));
+    die("❌ Database error loading dropdowns: " . htmlspecialchars($e->getMessage()));
 }
 
-// Handle form submit
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old['email']      = trim($_POST['email'] ?? '');
     $old['password']   = $_POST['password'] ?? '';
@@ -34,55 +34,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (strlen($old['password']) < 6) $errors[] = "Password must be at least 6 characters.";
     if ($old['name'] === '') $errors[] = "Name required.";
     if ($old['student_id'] === '') $errors[] = "Student ID required.";
-    // optional: verify class/course/department IDs are numeric if submitted
 
     if (empty($errors)) {
         try {
             $pdo->beginTransaction();
 
-            // Email uniqueness
-            $stmt = $pdo->prepare("SELECT UserID FROM `user` WHERE Email = ? LIMIT 1");
+            // Check email uniqueness
+            $stmt = $pdo->prepare("SELECT UserID FROM `user` WHERE Email = ?");
             $stmt->execute([$old['email']]);
             if ($stmt->fetch()) throw new Exception("Email already registered.");
 
-            // IC uniqueness if provided
+            // Check IC uniqueness
             if ($old['ic'] !== '') {
-                $stmt = $pdo->prepare("SELECT UserID FROM student WHERE IC_Number = ? LIMIT 1");
+                $stmt = $pdo->prepare("SELECT UserID FROM student WHERE IC_Number = ?");
                 $stmt->execute([$old['ic']]);
                 if ($stmt->fetch()) throw new Exception("IC number already registered.");
             }
 
-            // Insert into user
+            // Insert new user
             $pwHash = password_hash($old['password'], PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO `user` (Password_Hash, Role, Email, Created_At) VALUES (?, 'Student', ?, NOW())");
             $stmt->execute([$pwHash, $old['email']]);
             $userId = $pdo->lastInsertId();
 
-            // Validate / normalize class selection: ensure ClassID exists
+            // Validate ClassID
             $classId = null;
             if (!empty($old['class'])) {
                 $stmt = $pdo->prepare("SELECT ClassID FROM class WHERE ClassID = ? LIMIT 1");
                 $stmt->execute([$old['class']]);
-                $r = $stmt->fetch();
-                if ($r) $classId = $r['ClassID'];
+                if ($r = $stmt->fetch()) $classId = $r['ClassID'];
             }
 
-            // Insert into student (includes Student_Number column added by ALTER TABLE)
+            // Insert into student (matches V4 schema)
             $stmt = $pdo->prepare("
-                INSERT INTO student (UserID, ClassID, FullName, IC_Number, Phone, Profile_Image, Student_Number)
-                VALUES (?, ?, ?, ?, ?, NULL, ?)
+                INSERT INTO student (UserID, StudentID, ClassID, FullName, IC_Number, Phone, Profile_Image)
+                VALUES (?, ?, ?, ?, ?, ?, NULL)
             ");
             $stmt->execute([
                 $userId,
+                $old['student_id'],
                 $classId,
                 $old['name'],
-                $old['ic'] !== '' ? $old['ic'] : null,
-                $old['phone'] !== '' ? $old['phone'] : null,
-                $old['student_id']
+                $old['ic'] ?: null,
+                $old['phone'] ?: null
             ]);
 
             $pdo->commit();
-
             header("Location: login.php?registered=1");
             exit;
         } catch (Exception $e) {
@@ -92,11 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Helper to preserve old values in form
-function old($key, $default = '') {
-    global $old;
-    return isset($old[$key]) ? htmlspecialchars($old[$key], ENT_QUOTES) : htmlspecialchars($default, ENT_QUOTES);
-}
+// Helper to echo old values
+function old($k, $d = '') { global $old; return htmlspecialchars($old[$k] ?? $d, ENT_QUOTES); }
 ?>
 <!doctype html>
 <html lang="en">
@@ -104,6 +98,7 @@ function old($key, $default = '') {
   <meta charset="utf-8">
   <title>Register — GMI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="img/favicon.png" type="image/png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -119,7 +114,7 @@ function old($key, $default = '') {
   <div class="registration-form">
     <h1>REGISTRATION</h1>
 
-    <?php if (!empty($errors)): ?>
+    <?php if ($errors): ?>
       <div style="background:#ffe6e6;padding:10px;border-radius:8px;color:#900;margin-bottom:12px;">
         <?php foreach ($errors as $e): ?><div><?=htmlspecialchars($e)?></div><?php endforeach; ?>
       </div>
@@ -160,7 +155,7 @@ function old($key, $default = '') {
         </div>
         <div class="form-group">
           <label>Department:</label>
-          <select name="department" required id="department-select">
+          <select name="department" id="department-select" required>
             <option value="">-- Select Department --</option>
             <?php foreach ($departments as $d): ?>
               <option value="<?= $d['DepartmentID'] ?>" <?= old('department') == $d['DepartmentID'] ? 'selected' : '' ?>>
@@ -215,7 +210,7 @@ function old($key, $default = '') {
 <div style="clear:both;"></div>
 
 <script>
-// Small client-side filter: when department changes, filter courses; when course changes, filter classes
+// Filter courses and classes dynamically
 document.addEventListener('DOMContentLoaded', function(){
   const deptSel = document.getElementById('department-select');
   const courseSel = document.getElementById('course-select');
@@ -225,10 +220,8 @@ document.addEventListener('DOMContentLoaded', function(){
     const dept = deptSel.value;
     Array.from(courseSel.options).forEach(opt => {
       if (!opt.value) return;
-      const d = opt.dataset.dept || '';
-      opt.hidden = (dept && d !== dept);
+      opt.hidden = dept && opt.dataset.dept !== dept;
     });
-    // if current selected course hidden, reset
     if (courseSel.selectedOptions.length && courseSel.selectedOptions[0].hidden) courseSel.value = '';
     filterClasses();
   }
@@ -237,14 +230,13 @@ document.addEventListener('DOMContentLoaded', function(){
     const course = courseSel.value;
     Array.from(classSel.options).forEach(opt => {
       if (!opt.value) return;
-      const c = opt.dataset.course || '';
-      opt.hidden = (course && c !== course);
+      opt.hidden = course && opt.dataset.course !== course;
     });
     if (classSel.selectedOptions.length && classSel.selectedOptions[0].hidden) classSel.value = '';
   }
 
-  deptSel && deptSel.addEventListener('change', filterCourses);
-  courseSel && courseSel.addEventListener('change', filterClasses);
+  deptSel.addEventListener('change', filterCourses);
+  courseSel.addEventListener('change', filterClasses);
 });
 </script>
 </body>
