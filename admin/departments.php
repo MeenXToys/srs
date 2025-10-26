@@ -321,7 +321,7 @@ th{color:var(--muted);text-align:left;font-weight:700;}
 <form id="searchForm" method="get" style="display:flex;gap:8px;align-items:center;">
   <input name="q" class="search-input" placeholder="Search code or name..." value="<?= e($q) ?>">
   <select name="per" onchange="this.form.submit()" class="search-input">
-    <?php foreach([5,10,,50] as $p): ?>
+    <?php foreach([5,10,25,50] as $p): ?>
       <option value="<?= $p ?>" <?= $per == $p ? 'selected' : '' ?>><?= $p ?>/page</option>
     <?php endforeach; ?>
   </select>
