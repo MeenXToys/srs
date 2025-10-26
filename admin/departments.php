@@ -173,52 +173,17 @@ unset($_SESSION['flash']);
 /* --- top-actions (grouped toolbar) --- */
 .top-actions {
   display:flex;
-  justify-content:space-between;
   align-items:center;
   gap:12px;
   padding:10px;
   background: rgba(255,255,255,0.01);
   border-radius:10px;
   margin-bottom:14px;
-}
-
-/* top-actions: make export closer to left group */
-.top-actions {
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:10px;
-  background: rgba(255,255,255,0.01);
-  border-radius:10px;
-  margin-bottom:14px;
-  /* use flex-start so items sit together; we'll push only right group to the far right */
   justify-content:flex-start;
 }
-
-/* keep groups inline; center-buttons no longer centered by auto margins */
 .top-actions > div { display:flex; gap:10px; align-items:center; }
-
-/* left group stays at start */
 .left-buttons { flex: 0 0 auto; }
-
-/* put export just after left group with small spacing */
-.center-buttons { flex: 0 0 auto; margin-left:6px; }
-
-/* right group pushed to far right */
 .right-buttons { margin-left: auto; display:flex; align-items:center; gap:8px; }
-
-/* smaller visual tweaks */
-.btn-danger { background: linear-gradient(180deg,#dc2626,#b91c1c); color:#fff; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; }
-.toggle-btn { border-radius:8px; padding:8px 12px; color:#fff; text-decoration:none; font-weight:600; }
-.toggle-btn.active-toggle { background:#10b981; color:#072014; }
-.toggle-btn:not(.active-toggle) { background:#ef4444; }
-
-@media (max-width:900px) {
-  .top-actions { flex-direction:column; align-items:stretch; }
-  .top-actions > div { justify-content: space-between; }
-}
-
-.top-actions > div { display:flex; gap:10px; align-items:center; }
 .btn-danger { background: linear-gradient(180deg,#dc2626,#b91c1c); color:#fff; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; }
 .toggle-btn { border-radius:8px; padding:8px 12px; color:#fff; text-decoration:none; font-weight:600; }
 .toggle-btn.active-toggle { background:#10b981; color:#072014; }
@@ -243,7 +208,7 @@ th{color:var(--muted);text-align:left;font-weight:700;}
   max-width: 95%;
   background: linear-gradient(180deg, #0b1520 0%, #0f172a 100%);
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
+  border-radius: 19px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.7);
   color: var(--text);
   animation: fadeInScale 0.2s ease-out;
@@ -254,11 +219,10 @@ th{color:var(--muted);text-align:left;font-weight:700;}
   display: flex;
   gap: 8px;
 }
-
 .search-buttons button,
 .search-buttons a.btn-muted {
-  width: 90px;             /* fixed width so they match */
-  height: 38px;            /* uniform height */
+  width: 90px;
+  height: 38px;
   border-radius: 6px;
   text-align: center;
   justify-content: center;
@@ -267,14 +231,15 @@ th{color:var(--muted);text-align:left;font-weight:700;}
   display: inline-flex;
 }
 
+/* Delete modal spacing tweaks */
 .delete-header { border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 12px; }
-.delete-header h3 { margin: 0; color: #fca5a5; font-size: 1.25rem; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
-.delete-body { line-height: 1.55; font-size: 0.95rem; }
-.warning-text { background: rgba(239,68,68,0.1); border-left: 3px solid #ef4444; padding: 8px 10px; border-radius: 6px; color: #f87171; margin: 10px 0; }
+.delete-header h3 { margin: 0; color: #fca5a5; font-size: 1.25rem; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; padding:22px 26px; }
+.delete-body { line-height: 1.55; font-size: 0.95rem; padding:22px 26px; }
+.warning-text { background: rgba(239,68,68,0.1); border-left: 3px solid #ef4444; padding:14px 16px; border-radius: 6px; color: #f87171; margin:14px 0; }
 .confirm-label { display: block; margin-top: 14px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; }
 .confirm-input { width: 100%; background: #0a1220; color: #f8fafc; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; font-size: 0.95rem; transition: all 0.2s ease; }
 .confirm-input:focus { border-color: #38bdf8; outline: none; box-shadow: 0 0 0 2px rgba(56,189,248,0.2); }
-.delete-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); }
+.delete-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding:18px 26px; border-top: 1px solid rgba(255,255,255,0.05); }
 .btn-cancel { background: #1e293b; color: #e2e8f0; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
 .btn-cancel:hover { background: #334155; }
 .btn-delete { background: linear-gradient(90deg, #dc2626, #b91c1c); border: none; color: white; padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
@@ -296,10 +261,81 @@ th{color:var(--muted);text-align:left;font-weight:700;}
 .toast.success { background: #065f46; color: #ecfdf5; }
 .toast.error { background: #7f1d1d; color: #fee2e2; }
 
+/* ---------- Add/Edit modal: match delete modal visual style ---------- */
+/* Base modal appearance: wider, more padding, same radius as delete-modal */
+.modal {
+  width: 560px;
+  max-width: 94%;
+  background: linear-gradient(180deg, #071026 0%, #081626 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  box-shadow: 0 22px 64px rgba(2,6,23,0.85), inset 0 1px 0 rgba(255,255,255,0.02);
+  color: var(--text);
+  animation: fadeInScale 0.22s ease-out;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Modal header area (title + optional subtitle) */
+.modal .modal-header {
+  padding: 20px 26px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.modal .modal-header h3 {
+  margin:0;
+  font-size:1.15rem;
+  color:#f1f9ff;
+  letter-spacing:0.3px;
+}
+
+/* modal body content area */
+.modal .modal-body {
+  padding: 18px 26px;
+  line-height:1.55;
+  color: #dbeafe;
+  font-size: 1rem;
+  flex:1 1 auto;
+}
+
+/* form fields consistent with delete input style */
+.modal .form-row { margin-bottom:12px; display:flex; flex-direction:column; gap:6px; }
+.modal label { color:#cbd5e1; font-weight:600; font-size:.95rem; }
+.modal input[type="text"], .modal input[type="email"] {
+  width:100%;
+  padding:12px 14px;
+  border-radius:10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  color: var(--text);
+  font-size:0.97rem;
+  transition: box-shadow .14s ease, border-color .14s ease, transform .08s ease;
+}
+.modal input:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 4px rgba(56,189,248,0.06);
+}
+
+/* footer (buttons) */
+.modal .modal-footer {
+  display:flex;
+  justify-content:flex-end;
+  gap:12px;
+  padding:16px 26px;
+  border-top: 1px solid rgba(255,255,255,0.02);
+  background: linear-gradient(180deg, rgba(0,0,0,0.02), transparent);
+}
+.modal .btn-muted { padding:10px 18px; border-radius:10px; font-weight:700; }
+.modal .btn-primary { padding:10px 18px; border-radius:10px; font-weight:700; background: linear-gradient(90deg, var(--accent1), var(--accent2)); color:#fff; border:0; cursor:pointer; }
+
 /* responsive */
-@media (max-width:900px) {
-  .top-actions { flex-direction: column; align-items:stretch; }
-  .top-actions > div { justify-content: space-between; }
+@media (max-width:560px) {
+  .modal { width: 96%; }
+  .modal .modal-header, .modal .modal-body, .modal .modal-footer { padding-left:16px; padding-right:16px; }
 }
 </style>
 </head>
@@ -341,7 +377,6 @@ th{color:var(--muted);text-align:left;font-weight:700;}
   <a class="btn btn-blue" href="export_departments.php">Export All</a>
   <button id="bulkDeleteBtn" class="btn-danger">Delete Selected</button>
 </div>
-
 
         <div class="right-buttons">
           <?php if ($show_deleted): ?>
@@ -426,25 +461,31 @@ th{color:var(--muted);text-align:left;font-weight:700;}
   </div>
 </main>
 
-<!-- Add/Edit Modal -->
+<!-- Add/Edit Modal (updated visual to match delete modal) -->
 <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
-  <div class="modal" role="dialog">
-    <h3 id="modalTitle">Add Department</h3>
-    <form id="modalForm">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header">
+      <h3 id="modalTitle">Add Department</h3>
+    </div>
+
+    <form id="modalForm" class="modal-body">
       <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
       <input type="hidden" name="action" id="modalAction" value="add">
       <input type="hidden" name="id" id="modalId" value="0">
-      <div class="row">
+
+      <div class="form-row">
         <label for="modal_code">Code</label>
-        <input id="modal_code" name="dept_code" type="text" required style="width:100%;padding:8px;border-radius:6px;background:#071026;border:1px solid rgba(255,255,255,0.04);color:var(--text)">
+        <input id="modal_code" name="dept_code" type="text" required autocomplete="off" />
       </div>
-      <div class="row">
+
+      <div class="form-row">
         <label for="modal_name">Name</label>
-        <input id="modal_name" name="dept_name" type="text" required style="width:100%;padding:8px;border-radius:6px;background:#071026;border:1px solid rgba(255,255,255,0.04);color:var(--text)">
+        <input id="modal_name" name="dept_name" type="text" required autocomplete="off" />
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
+
+      <div class="modal-footer">
         <button type="button" id="modalCancel" class="btn-muted">Cancel</button>
-        <button id="modalSubmit" class="btn" type="submit">Save</button>
+        <button id="modalSubmit" class="btn-primary" type="submit">Save</button>
       </div>
     </form>
   </div>
@@ -506,7 +547,10 @@ function showToast(msg, t=2500, cls=''){
 const chkAll = document.getElementById('chkAll');
 const rowChecks = ()=>Array.from(document.querySelectorAll('.row-chk'));
 const openAddBtn = document.getElementById('openAddBtn');
+
+// Modal elements (updated)
 const modalBackdrop = document.getElementById('modalBackdrop');
+const modalTitle = document.getElementById('modalTitle');
 const modalForm = document.getElementById('modalForm');
 const modalAction = document.getElementById('modalAction');
 const modalId = document.getElementById('modalId');
@@ -533,11 +577,13 @@ if (openAddBtn) openAddBtn.addEventListener('click', ()=>{
     modalId.value = 0;
     modalCode.value = '';
     modalName.value = '';
+    modalTitle.textContent = 'Add Department';
+    modalSubmit.textContent = 'Save';
     modalBackdrop.classList.add('open');
     modalCode.focus();
 });
 
-// Edit buttons
+// Edit buttons (update modal)
 document.querySelectorAll('.link-update').forEach(btn=>{
     btn.addEventListener('click', ()=>{
         const id = btn.dataset.id;
@@ -546,6 +592,8 @@ document.querySelectorAll('.link-update').forEach(btn=>{
         modalId.value = id;
         modalCode.value = d.Dept_Code || '';
         modalName.value = d.Dept_Name || '';
+        modalTitle.textContent = 'Update Department';
+        modalSubmit.textContent = 'Update';
         modalBackdrop.classList.add('open');
         modalCode.focus();
     });
@@ -554,18 +602,19 @@ document.querySelectorAll('.link-update').forEach(btn=>{
 // Cancel modal
 if (modalCancel) modalCancel.addEventListener('click', ()=> modalBackdrop.classList.remove('open'));
 
-// AJAX add/edit submit
+// AJAX add/edit submit (uses same API)
 if (modalForm) modalForm.addEventListener('submit', function(e){
     e.preventDefault();
     const act = modalAction.value;
     const id = modalId.value;
     modalSubmit.disabled = true;
-    modalSubmit.textContent = 'Saving...';
+    const originalText = modalSubmit.textContent;
+    modalSubmit.textContent = act === 'edit' ? 'Updating...' : 'Saving...';
     const payload = { action: act, dept_code: modalCode.value.trim(), dept_name: modalName.value.trim() };
     if (act === 'edit') payload.id = id;
     postJSON('api/departments.php', payload).then(resp=>{
         modalSubmit.disabled = false;
-        modalSubmit.textContent = 'Save';
+        modalSubmit.textContent = originalText;
         if (resp && resp.ok) {
             modalBackdrop.classList.remove('open');
             showToast('Saved', 1200, 'success');
@@ -573,7 +622,7 @@ if (modalForm) modalForm.addEventListener('submit', function(e){
         } else {
             showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
         }
-    }).catch(()=>{ modalSubmit.disabled = false; modalSubmit.textContent = 'Save'; showToast('Network error',2500,'error'); });
+    }).catch(()=>{ modalSubmit.disabled = false; modalSubmit.textContent = originalText; showToast('Network error',2500,'error'); });
 });
 
 // Delete flow (typed double confirm)
@@ -617,8 +666,6 @@ if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', ()=>{
         else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
     }).catch(()=>showToast('Network error',2500,'error'));
 });
-
-// Bulk export removed — no listener
 
 // per-row undo (if present)
 document.querySelectorAll('[data-undo-id]').forEach(btn=>{

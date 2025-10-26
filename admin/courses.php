@@ -4,7 +4,12 @@ require_once __DIR__ . '/../config.php';
 require_admin();
 require_once __DIR__ . '/admin_nav.php';
 
-if (!function_exists('e')) { function e($s){ return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
+// small safe echo
+if (!function_exists('e')) {
+    function e($s){ return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+}
+
+// CSRF token
 if (!isset($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(24));
 $csrf = $_SESSION['csrf_token'];
 
@@ -20,7 +25,7 @@ $show_deleted = ($_GET['show_deleted'] ?? '') === '1';
 $allowed = ['name','code','students'];
 if (!in_array($sort, $allowed)) $sort = 'name';
 
-// helpers
+// helper functions (build sort links, arrow)
 function build_sort_link($col) {
     $params = $_GET;
     $currentSort = $params['sort'] ?? 'name';
@@ -41,7 +46,16 @@ function sort_arrow($col) {
 $has_deleted_at = false;
 try { $has_deleted_at = (bool)$pdo->query("SHOW COLUMNS FROM course LIKE 'deleted_at'")->fetch(); } catch(Exception $e) { $has_deleted_at = false; }
 
-// WHERE
+// fetch departments for dropdown (id, code, name)
+$departments = [];
+try {
+    $dstmt = $pdo->query("SELECT DepartmentID, Dept_Code, Dept_Name FROM department ORDER BY Dept_Code IS NULL, Dept_Code ASC, Dept_Name ASC");
+    $departments = $dstmt->fetchAll(PDO::FETCH_ASSOC);
+} catch(Exception $e) {
+    $departments = [];
+}
+
+// where clause
 $where = [];
 $params = [];
 if ($q !== '') { $where[] = "(c.Course_Name LIKE :q OR c.Course_Code LIKE :q OR d.Dept_Name LIKE :q)"; $params[':q'] = "%$q%"; }
@@ -68,9 +82,8 @@ $totalPages = max(1, (int)ceil($total / $per));
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page -1) * $per;
 
-// data - note: order by department first so grouping is simple in PHP
+// data (order by dept then course)
 try {
-    // Order by department code/name, then course code/name
     $orderMap = ['name'=>'c.Course_Name','code'=>'c.Course_Code','students'=>'students'];
     $orderSql = ($orderMap[$sort] ?? $orderMap['name']) . ' ' . $dir;
 
@@ -97,13 +110,12 @@ try {
     $errMsg = $e->getMessage();
 }
 
-// group rows by department (Dept_Code preferred, fallback to Dept_Name or 'Unassigned')
+// group rows by department (Dept_Code preferred else Dept_Name)
 $groups = [];
 foreach ($rows as $r) {
     $deptCode = $r['Dept_Code'] ?? '';
     $deptName = $r['Dept_Name'] ?? '';
     if ($deptCode === null || trim($deptCode) === '') {
-        // use Dept_Name as code if code empty, else 'Unassigned'
         $deptKey = $deptName ? $deptName : 'Unassigned';
     } else {
         $deptKey = $deptCode;
@@ -118,7 +130,7 @@ foreach ($rows as $r) {
     $groups[$deptKey]['items'][] = $r;
 }
 
-// prepare JS map for actions
+// JS map for actions
 $map = [];
 foreach ($rows as $r) {
     $map[(int)$r['CourseID']] = [
@@ -152,13 +164,13 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 .center-box{max-width:1100px;margin:0 auto;padding:18px;}
 .admin-controls{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;}
 .left-controls{display:flex;gap:8px;align-items:center;}
-.search-input{padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:var(--card);color:var(--text);}
+.search-input{padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:var(--card);color:var(--text);min-width:220px;}
 .btn{display:inline-block;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;border:0;cursor:pointer;}
 .btn-muted{background:#374151;color:#fff;border-radius:8px;padding:8px 12px;border:0;cursor:pointer;}
 .add-btn{background:linear-gradient(180deg,var(--accent1),var(--accent2));color:#fff;padding:10px 16px;border-radius:8px;font-weight:700;border:0;cursor:pointer;}
 .card{background:var(--card);border-radius:10px;padding:18px;box-shadow:0 6px 18px rgba(0,0,0,0.4);}
 
-/* --- top-actions (grouped toolbar) --- */
+/* toolbar */
 .top-actions { display:flex; align-items:center; gap:12px; padding:10px; background: rgba(255,255,255,0.01); border-radius:10px; margin-bottom:14px; justify-content:flex-start; }
 .top-actions > div { display:flex; gap:10px; align-items:center; }
 .left-buttons { flex: 0 0 auto; }
@@ -169,7 +181,7 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 .toggle-btn:not(.active-toggle) { background:#ef4444; }
 .toggle-label { color:var(--muted); font-size:0.9rem; font-style:italic; margin-left:6px; }
 
-/* make Search/Clear same size */
+/* search buttons same width */
 .search-buttons { display:flex; gap:8px; }
 .search-buttons button, .search-buttons a.btn-muted { width:90px; height:38px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
 
@@ -193,16 +205,63 @@ th{color:var(--muted);text-align:left;font-weight:700;}
     color: #cfe8ff;
     border-top: 1px solid rgba(255,255,255,0.03);
 }
-/* small dept meta */
 .dept-sub { color: var(--muted); font-weight:600; margin-left:10px; font-size:0.95rem; }
 
-/* modal + delete */
+/* modal styles (like department popup) */
 .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;z-index:400;}
 .modal-backdrop.open{display:flex;backdrop-filter: blur(6px);background: rgba(2,6,23,0.5);}
-.modal{background:var(--card);border-radius:10px;padding:20px;width:520px;max-width:96%;color:var(--text);line-height:1.45;}
-.form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+.delete-modal { width: 480px; max-width: 95%; background: linear-gradient(180deg, #0b1520 0%, #0f172a 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 19px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); color: var(--text); animation: fadeInScale 0.2s ease-out; }
+.modal {
+  width: 560px; max-width: 94%;
+  background: linear-gradient(180deg, #071026 0%, #081626 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px; box-shadow: 0 22px 64px rgba(2,6,23,0.85), inset 0 1px 0 rgba(255,255,255,0.02);
+  color: var(--text); animation: fadeInScale 0.22s ease-out; overflow: hidden; display: flex; flex-direction: column;
+}
+.modal .modal-header { padding: 20px 26px; border-bottom: 1px solid rgba(255,255,255,0.03); display:flex; align-items:center; gap:12px; }
+.modal .modal-header h3 { margin:0; font-size:1.15rem; color:#f1f9ff; letter-spacing:0.3px; }
+.modal .modal-body { padding: 18px 26px; line-height:1.55; color: #dbeafe; font-size: 1rem; flex:1 1 auto; }
+.form-row { margin-bottom:12px; display:flex; flex-direction:column; gap:6px; }
+.modal label { color:#cbd5e1; font-weight:600; font-size:.95rem; }
+.modal input[type="text"], .modal select {
+  width:100%; padding:12px 14px; border-radius:10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); color: var(--text); font-size:0.97rem; transition: box-shadow .14s ease, border-color .14s ease, transform .08s ease;
+}
+.modal input::placeholder { color: rgba(230,238,248,0.35); font-weight:600; }
+.modal input:focus, .modal select:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56,189,248,0.06); }
+.modal select { -webkit-appearance: none; appearance: none; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.08); color: #e6eef8; padding-right: 40px; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; }
+.modal select option[disabled] { color: #98a0aa; font-weight: 600; }
+.modal select option { background: #071025; color: #e6eef8; padding: 10px 12px; font-weight: 600; }
+.modal .select-wrap { position: relative; display:block; }
+.modal .select-wrap::after{ content: "▾"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #9fd5ff; pointer-events: none; font-size: 12px; opacity: 0.95; }
+
+/* footer buttons */
+.modal .modal-footer { display:flex; justify-content:flex-end; gap:12px; padding:16px 26px; border-top: 1px solid rgba(255,255,255,0.02); background: linear-gradient(180deg, rgba(0,0,0,0.02), transparent); }
+.modal .btn-muted { padding:10px 18px; border-radius:10px; font-weight:700; }
+.modal .btn-primary { padding:10px 18px; border-radius:10px; font-weight:700; background: linear-gradient(90deg, var(--accent1), var(--accent2)); color:#fff; border:0; cursor:pointer; }
+
+/* delete modal specific */
+.delete-header { border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 12px; }
+.delete-header h3 { margin: 0; color: #fca5a5; font-size: 1.25rem; padding: 22px 26px; }
+.delete-body { padding: 22px 26px; }
+.confirm-input { width: 100%; background: #0a1220; color: #f8fafc; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; font-size: 0.95rem; }
+.delete-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; padding:18px 26px; border-top: 1px solid rgba(255,255,255,0.05); }
+
+/* small util */
+@keyframes fadeInScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes shake { 10%,90%{transform:translateX(-2px);}20%,80%{transform:translateX(4px);} }
+.shake { animation: shake 0.4s ease; }
+
+/* toast */
 .toast{position:fixed;right:18px;bottom:18px;background:#0b1520;padding:12px 16px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);color:#e6eef8;z-index:600;display:none;}
 .toast.show{display:block;}
+.toast.success { background: #065f46; color: #ecfdf5; }
+.toast.error { background: #7f1d1d; color: #fee2e2; }
+
+/* responsive */
+@media (max-width:560px) {
+  .modal { width: 96%; }
+  .modal .modal-header, .modal .modal-body, .modal .modal-footer { padding-left:16px; padding-right:16px; }
+}
 </style>
 </head>
 <body>
@@ -278,7 +337,7 @@ th{color:var(--muted);text-align:left;font-weight:700;}
               <?php else: ?>
                 <?php foreach ($groups as $gKey => $g): ?>
                   <tr class="dept-row">
-                    <td colspan="6">
+                    <td colspan="6" class="dept-header" data-dept-code="<?= e($g['dept_code']) ?>" data-dept-name="<?= e($g['dept_name']) ?>">
                       <span style="font-size:1rem;"><?= e($gKey ?: 'Unassigned') ?></span>
                       <?php if (!empty($g['dept_name'])): ?><span class="dept-sub">— <?= e($g['dept_name']) ?></span><?php endif; ?>
                     </td>
@@ -288,10 +347,8 @@ th{color:var(--muted);text-align:left;font-weight:700;}
                     <tr class="row-hover">
                       <td class="checkbox-col"><input class="row-chk" type="checkbox" value="<?= e($r['CourseID']) ?>" <?= $isDeleted ? 'disabled' : '' ?>></td>
                       <td><span class="code-badge"><?= e($r['Course_Code'] ?? '-') ?></span></td>
-                      <td><?= e($r['Course_Name']) ?>
-                        <?php if ($isDeleted): ?><div style="color:var(--muted);font-size:.95rem;margin-top:6px;">Deleted at <?= e($r['deleted_at']) ?></div><?php endif; ?>
-                      </td>
-                      <td><?= e($r['Dept_Name'] ?? '-') ?></td>
+                      <td><?= e($r['Course_Name']) ?><?php if ($isDeleted): ?><div style="color:var(--muted);font-size:.95rem;margin-top:6px;">Deleted at <?= e($r['deleted_at']) ?></div><?php endif; ?></td>
+                      <td class="dept-col" data-dept-id="<?= e($r['DepartmentID'] ?? '') ?>" data-dept-code="<?= e($r['Dept_Code'] ?? '') ?>" data-dept-name="<?= e($r['Dept_Name'] ?? '') ?>"><?= e($r['Dept_Name'] ?? '-') ?></td>
                       <td style="text-align:right"><?= e((int)$r['students']) ?></td>
                       <td>
                         <div class="actions-inline">
@@ -338,33 +395,41 @@ th{color:var(--muted);text-align:left;font-weight:700;}
   </div>
 </main>
 
-<!-- Add/Edit Modal -->
+<!-- Add/Edit Modal (styled like department) -->
 <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
-  <div class="modal" role="dialog">
-    <h3 id="modalTitle">Add Course</h3>
-    <form id="modalForm">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header"><h3 id="modalTitle">Add Course</h3></div>
+
+    <form id="modalForm" class="modal-body" autocomplete="off">
       <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
       <input type="hidden" name="action" id="modalAction" value="add">
       <input type="hidden" name="id" id="modalId" value="0">
 
-      <div class="form-field">
-        <label for="modal_code">Code</label>
-        <input id="modal_code" name="course_code" type="text" required style="padding:8px;border-radius:6px;background:#071026;border:1px solid rgba(255,255,255,0.04);color:var(--text)">
+      <div class="form-row">
+        <label for="modal_code">Course Code</label>
+        <input id="modal_code" name="course_code" type="text" required placeholder="e.g. CID, MED, EED">
       </div>
 
-      <div class="form-field">
-        <label for="modal_name">Name</label>
-        <input id="modal_name" name="course_name" type="text" required style="padding:8px;border-radius:6px;background:#071026;border:1px solid rgba(255,255,255,0.04);color:var(--text)">
+      <div class="form-row">
+        <label for="modal_name">Course Name</label>
+        <input id="modal_name" name="course_name" type="text" required placeholder="e.g. COMPUTER & INFORMATION">
       </div>
 
-      <div class="form-field">
-        <label for="modal_dept">Department ID</label>
-        <input id="modal_dept" name="department_id" type="text" placeholder="optional" style="padding:8px;border-radius:6px;background:#071026;border:1px solid rgba(255,255,255,0.04);color:var(--text)">
+      <div class="form-row">
+        <label for="modal_dept">Department <span style="color:#f87171;font-weight:700;">(required)</span></label>
+        <div class="select-wrap">
+          <select id="modal_dept" name="department_id" required>
+            <option value="" disabled selected>-- Select department --</option>
+            <?php foreach ($departments as $d): ?>
+              <option value="<?= e($d['DepartmentID']) ?>"><?= e($d['Dept_Code'] ? "{$d['Dept_Code']} — {$d['Dept_Name']}" : $d['Dept_Name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+      <div class="modal-footer">
         <button type="button" id="modalCancel" class="btn-muted">Cancel</button>
-        <button id="modalSubmit" class="btn" type="submit">Save</button>
+        <button id="modalSubmit" class="btn-primary" type="submit">Save</button>
       </div>
     </form>
   </div>
@@ -372,15 +437,19 @@ th{color:var(--muted);text-align:left;font-weight:700;}
 
 <!-- DELETE CONFIRMATION MODAL -->
 <div id="deleteBackdrop" class="modal-backdrop" aria-hidden="true">
-  <div class="modal" role="dialog">
-    <h3>⚠️ Confirm Delete</h3>
-    <p>You are about to delete <strong id="deleteName"></strong>.</p>
-    <p class="warning-text" style="color:#f87171;">This will soft-delete the row (if enabled).</p>
-    <label style="margin-top:8px;color:#cbd5e1;">Type <code>DELETE</code> below to confirm:</label>
-    <input id="confirmDelete" type="text" placeholder="Type DELETE here" class="confirm-input" style="width:100%;padding:8px;border-radius:6px;background:#071026;border:1px solid rgba(255,255,255,0.04);color:var(--text);margin-top:8px;">
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
-      <button id="deleteCancel" class="btn-muted">Cancel</button>
-      <button id="deleteConfirm" class="btn" disabled style="background:linear-gradient(90deg,#ef4444,#dc2626);color:#fff;">Delete permanently</button>
+  <div class="modal delete-modal" role="dialog">
+    <div class="delete-header"><h3>⚠️ Confirm Delete</h3></div>
+    <div class="delete-body">
+      <p>You are about to delete <strong id="deleteName"></strong>.</p>
+      <p class="warning-text">This action will <b>soft-delete</b> the course. You can restore it later using the <em>Undo</em> option.</p>
+
+      <label class="confirm-label" for="confirmDelete">Please type <code>DELETE</code> below to confirm:</label>
+      <input id="confirmDelete" type="text" placeholder="Type DELETE here" class="confirm-input">
+    </div>
+
+    <div class="delete-footer">
+      <button id="deleteCancel" class="btn-cancel">Cancel</button>
+      <button id="deleteConfirm" class="btn-delete" disabled>Delete permanently</button>
     </div>
   </div>
 </div>
@@ -401,83 +470,122 @@ function postJSON(url, data){
     return fetch(url, { method:'POST', body: fd }).then(r => r.json());
 }
 function showToast(msg, timeout=2200, cls='') {
-    const s = document.getElementById('toast'); s.textContent = msg; s.classList.add('show'); setTimeout(()=> s.classList.remove('show'), timeout);
+    const s = document.getElementById('toast'); s.textContent = msg; s.classList.add('show'); if (cls) s.classList.add(cls);
+    setTimeout(()=> { s.classList.remove('show'); if (cls) s.classList.remove(cls); }, timeout);
 }
 
 // elements
 const chkAll = document.getElementById('chkAll');
 if (chkAll) chkAll.addEventListener('change', ()=> document.querySelectorAll('.row-chk').forEach(c=>{ if(!c.disabled) c.checked = chkAll.checked; }));
 
+// modal elements
+const modalBackdrop = document.getElementById('modalBackdrop');
+const modalTitle = document.getElementById('modalTitle');
+const modalForm = document.getElementById('modalForm');
+const modalAction = document.getElementById('modalAction');
+const modalId = document.getElementById('modalId');
+const modalCode = document.getElementById('modal_code');
+const modalName = document.getElementById('modal_name');
+const modalDept = document.getElementById('modal_dept');
+const modalCancel = document.getElementById('modalCancel');
+const modalSubmit = document.getElementById('modalSubmit');
+
+// delete modal elements
+const deleteBackdrop = document.getElementById('deleteBackdrop');
+const deleteName = document.getElementById('deleteName');
+const confirmDelete = document.getElementById('confirmDelete');
+const deleteConfirm = document.getElementById('deleteConfirm');
+const deleteCancel = document.getElementById('deleteCancel');
+
+const openAddBtn = document.getElementById('openAddBtn');
+
 // open add
-document.getElementById('openAddBtn').addEventListener('click', ()=> {
-    document.getElementById('modalAction').value = 'add';
-    document.getElementById('modalId').value = 0;
-    document.getElementById('modal_code').value = '';
-    document.getElementById('modal_name').value = '';
-    document.getElementById('modal_dept').value = '';
-    document.getElementById('modalBackdrop').classList.add('open');
-    document.getElementById('modal_code').focus();
+if (openAddBtn) openAddBtn.addEventListener('click', ()=> {
+    modalAction.value = 'add';
+    modalId.value = 0;
+    modalCode.value = '';
+    modalName.value = '';
+    modalDept.value = '';
+    modalTitle.textContent = 'Add Course';
+    modalSubmit.textContent = 'Save';
+    modalBackdrop.classList.add('open');
+    modalCode.focus();
 });
 
 // edit buttons
 document.querySelectorAll('.link-update').forEach(btn=>{
     btn.addEventListener('click', ()=> {
         const id = btn.dataset.id; const d = courseMap[id] || {};
-        document.getElementById('modalAction').value = 'edit';
-        document.getElementById('modalId').value = id;
-        document.getElementById('modal_code').value = d.Course_Code || '';
-        document.getElementById('modal_name').value = d.Course_Name || '';
-        document.getElementById('modal_dept').value = d.DepartmentID || '';
-        document.getElementById('modalBackdrop').classList.add('open');
-        document.getElementById('modal_code').focus();
+        modalAction.value = 'edit';
+        modalId.value = id;
+        modalCode.value = d.Course_Code || '';
+        modalName.value = d.Course_Name || '';
+        modalDept.value = d.DepartmentID || '';
+        modalTitle.textContent = 'Update Course';
+        modalSubmit.textContent = 'Update';
+        modalBackdrop.classList.add('open');
+        modalCode.focus();
     });
 });
 
 // cancel modal
-document.getElementById('modalCancel').addEventListener('click', ()=> document.getElementById('modalBackdrop').classList.remove('open'));
+modalCancel.addEventListener('click', ()=> modalBackdrop.classList.remove('open'));
 
 // submit add/edit
-document.getElementById('modalForm').addEventListener('submit', function(e){
+modalForm.addEventListener('submit', function(e){
     e.preventDefault();
-    const act = document.getElementById('modalAction').value;
-    const id = document.getElementById('modalId').value;
-    const code = document.getElementById('modal_code').value.trim();
-    const name = document.getElementById('modal_name').value.trim();
-    const dept = document.getElementById('modal_dept').value.trim();
-    const btn = document.getElementById('modalSubmit');
-    btn.disabled = true; btn.textContent = 'Saving...';
-    const payload = { action: act, course_code: code, course_name: name, department_id: dept || '' };
+    const act = modalAction.value;
+    const id = modalId.value;
+    const code = modalCode.value.trim();
+    const name = modalName.value.trim();
+    const dept = modalDept.value;
+    if (!dept) { showToast('Please select a department', 2000, 'error'); return; }
+    if (!code || !name) { showToast('Please fill required fields', 2000, 'error'); return; }
+    const btn = modalSubmit;
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = (act==='edit') ? 'Updating...' : 'Saving...';
+    const payload = { action: act, course_code: code, course_name: name, department_id: dept };
     if (act === 'edit') payload.id = id;
     postJSON('api/courses.php', payload).then(resp=>{
-        btn.disabled = false; btn.textContent = 'Save';
-        if (resp && resp.ok) { document.getElementById('modalBackdrop').classList.remove('open'); showToast('Saved'); setTimeout(()=>location.reload(), 600); }
-        else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'));
-    }).catch(()=>{ btn.disabled=false; btn.textContent='Save'; showToast('Network error'); });
+        btn.disabled = false; btn.textContent = orig;
+        if (resp && resp.ok) {
+            modalBackdrop.classList.remove('open');
+            showToast('Saved', 1200, 'success');
+            setTimeout(()=> location.reload(), 600);
+        } else {
+            showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
+        }
+    }).catch(()=>{ btn.disabled = false; btn.textContent = orig; showToast('Network error',2200,'error'); });
 });
 
 // delete flow
 document.querySelectorAll('.link-delete').forEach(btn=>{
     btn.addEventListener('click', ()=> {
         const id = btn.dataset.id; const d = courseMap[id] || {};
-        document.getElementById('deleteName').textContent = d.Course_Name || ('#'+id);
-        document.getElementById('confirmDelete').value = '';
-        document.getElementById('deleteConfirm').disabled = true;
-        document.getElementById('deleteConfirm').dataset.id = id;
-        document.getElementById('deleteBackdrop').classList.add('open');
-        document.getElementById('confirmDelete').focus();
+        deleteName.textContent = d.Course_Name || ('#'+id);
+        confirmDelete.value = '';
+        deleteConfirm.disabled = true;
+        deleteConfirm.dataset.id = id;
+        deleteBackdrop.classList.add('open');
+        confirmDelete.focus();
     });
 });
-document.getElementById('confirmDelete').addEventListener('input', ()=> {
-    document.getElementById('deleteConfirm').disabled = (document.getElementById('confirmDelete').value !== 'DELETE');
+confirmDelete.addEventListener('input', ()=> {
+    deleteConfirm.disabled = (confirmDelete.value !== 'DELETE');
+    if (confirmDelete.value.length >= 6 && confirmDelete.value !== 'DELETE') {
+        confirmDelete.classList.add('shake');
+        setTimeout(()=> confirmDelete.classList.remove('shake'), 380);
+    }
 });
-document.getElementById('deleteCancel').addEventListener('click', ()=> document.getElementById('deleteBackdrop').classList.remove('open'));
-document.getElementById('deleteConfirm').addEventListener('click', ()=> {
-    const id = document.getElementById('deleteConfirm').dataset.id;
-    const btn = document.getElementById('deleteConfirm'); btn.disabled = true; btn.textContent = 'Deleting...';
+deleteCancel.addEventListener('click', ()=> deleteBackdrop.classList.remove('open'));
+deleteConfirm.addEventListener('click', ()=> {
+    const id = deleteConfirm.dataset.id;
+    const btn = deleteConfirm; btn.disabled = true; btn.textContent = 'Deleting...';
     postJSON('api/courses.php', { action: 'delete', id: id }).then(resp=>{
-        if (resp && resp.ok) { document.getElementById('deleteBackdrop').classList.remove('open'); showToast('Deleted'); setTimeout(()=>location.reload(),600); }
-        else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown')); btn.disabled = false; btn.textContent = 'Delete permanently'; }
-    }).catch(()=>{ showToast('Network error'); btn.disabled=false; btn.textContent='Delete permanently'; });
+        if (resp && resp.ok) { deleteBackdrop.classList.remove('open'); showToast('Deleted', 1200, 'success'); setTimeout(()=>location.reload(),600); }
+        else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error'); btn.disabled = false; btn.textContent = 'Delete permanently'; }
+    }).catch(()=>{ showToast('Network error',2500,'error'); btn.disabled = false; btn.textContent = 'Delete permanently'; });
 });
 
 // undo
@@ -485,9 +593,9 @@ document.querySelectorAll('[data-undo-id]').forEach(btn=>{
     btn.addEventListener('click', ()=> {
         const id = btn.dataset.undoId;
         postJSON('api/courses.php', { action: 'undo', id: id }).then(resp=>{
-            if (resp && resp.ok) { showToast('Restored'); setTimeout(()=>location.reload(),600); }
-            else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'));
-        }).catch(()=>showToast('Network error'));
+            if (resp && resp.ok) { showToast('Restored', 1200, 'success'); setTimeout(()=>location.reload(),600); }
+            else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
+        }).catch(()=>showToast('Network error',2500,'error'));
     });
 });
 
@@ -497,9 +605,9 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', ()=> {
     if (!selected.length) return alert('Select rows first');
     if (!confirm('Delete selected courses?')) return;
     postJSON('api/courses.php', { action: 'bulk_delete', ids: selected }).then(resp=>{
-        if (resp && resp.ok) { showToast('Deleted ' + (resp.count || selected.length)); setTimeout(()=>location.reload(),600); }
-        else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'));
-    }).catch(()=>showToast('Network error'));
+        if (resp && resp.ok) { showToast('Deleted ' + (resp.count || selected.length), 1200, 'success'); setTimeout(()=>location.reload(),600); }
+        else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
+    }).catch(()=>showToast('Network error',2500,'error'));
 });
 
 // close modals on backdrop click

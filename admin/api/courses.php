@@ -1,71 +1,139 @@
 <?php
 // admin/api/courses.php
-header('Content-Type: application/json; charset=utf-8');
+// Handles add / edit / delete (soft) / undo / bulk_delete and export CSV for courses
+// Place this at admin/api/courses.php
 require_once __DIR__ . '/../../config.php';
 require_admin();
-function json_out($d){ echo json_encode($d); exit; }
-function sp($k){ return isset($_POST[$k]) ? trim((string)$_POST[$k]) : null; }
-$method = $_SERVER['REQUEST_METHOD'];
-if ($method !== 'POST' && !isset($_GET['export'])) json_out(['ok'=>false,'error'=>'Invalid method']);
-if ($method === 'POST') {
-    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) json_out(['ok'=>false,'error'=>'Invalid CSRF token']);
+header('Content-Type: application/json; charset=utf-8');
+
+// small json helper
+function json_resp($data) {
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
 }
-$action = trim($_POST['action'] ?? $_GET['action'] ?? '');
+
+// CSRF check for non-GET
+session_start();
+$csrf = $_SESSION['csrf_token'] ?? null;
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    $token = $_POST['csrf_token'] ?? $_REQUEST['csrf_token'] ?? null;
+    if (!$token || !$csrf || !hash_equals($csrf, $token)) {
+        json_resp(['ok'=>false, 'error'=>'Invalid CSRF token']);
+    }
+}
+
+// Helper: detect deleted_at column
+$has_deleted_at = false;
 try {
-    if ($action === 'add') {
-        $code = sp('course_code') ?: ''; $name = sp('course_name') ?: ''; $dept = (int)sp('department_id');
-        if ($code==='' || $name==='') json_out(['ok'=>false,'error'=>'code/name required']);
-        $chk = $pdo->prepare("SELECT 1 FROM course WHERE Course_Code = :code LIMIT 1"); $chk->execute([':code'=>$code]);
-        if ($chk->fetch()) json_out(['ok'=>false,'error'=>'code exists']);
-        $stmt = $pdo->prepare("INSERT INTO course (Course_Code, Course_Name, DepartmentID) VALUES (:code, :name, :dept)");
-        $stmt->execute([':code'=>$code,':name'=>$name,':dept'=>($dept ?: null)]);
-        json_out(['ok'=>true,'id'=>$pdo->lastInsertId()]);
-    }
+    $has_deleted_at = (bool)$pdo->query("SHOW COLUMNS FROM course LIKE 'deleted_at'")->fetch();
+} catch(Exception $e) {
+    $has_deleted_at = false;
+}
 
-    if ($action === 'edit') {
-        $id=(int)($_POST['id']??0); $code=sp('course_code')?:''; $name=sp('course_name')?:''; $dept=(int)sp('department_id');
-        if ($id<=0 || $code==='' || $name==='') json_out(['ok'=>false,'error'=>'invalid input']);
-        $stmt=$pdo->prepare("UPDATE course SET Course_Code=:code, Course_Name=:name, DepartmentID=:dept WHERE CourseID=:id");
-        $stmt->execute([':code'=>$code,':name'=>$name,':dept'=>$dept?:null,':id'=>$id]);
-        json_out(['ok'=>true]);
-    }
-
-    if ($action === 'delete') {
-        $id=(int)($_POST['id']??0); if ($id<=0) json_out(['ok'=>false,'error'=>'invalid id']);
-        $hasDeleted = (bool)$pdo->query("SHOW COLUMNS FROM course LIKE 'deleted_at'")->fetch();
-        if ($hasDeleted) $pdo->prepare("UPDATE course SET deleted_at = NOW() WHERE CourseID = :id")->execute([':id'=>$id]);
-        else $pdo->prepare("DELETE FROM course WHERE CourseID = :id")->execute([':id'=>$id]);
-        json_out(['ok'=>true]);
-    }
-
-    if ($action === 'undo') {
-        $id=(int)($_POST['id']??0); if ($id<=0) json_out(['ok'=>false,'error'=>'invalid id']);
-        $pdo->prepare("UPDATE course SET deleted_at = NULL WHERE CourseID = :id")->execute([':id'=>$id]);
-        json_out(['ok'=>true]);
-    }
-
-    if ($action === 'bulk_delete') {
-        $ids = $_POST['ids'] ?? []; if (!is_array($ids) || empty($ids)) json_out(['ok'=>false,'error'=>'no ids']);
-        $ids = array_map('intval',$ids); $in = implode(',', array_fill(0,count($ids),'?'));
-        $hasDeleted = (bool)$pdo->query("SHOW COLUMNS FROM course LIKE 'deleted_at'")->fetch();
-        if ($hasDeleted) { $stmt=$pdo->prepare("UPDATE course SET deleted_at = NOW() WHERE CourseID IN ($in)"); $stmt->execute($ids); }
-        else { $stmt=$pdo->prepare("DELETE FROM course WHERE CourseID IN ($in)"); $stmt->execute($ids); }
-        json_out(['ok'=>true,'count'=>count($ids)]);
-    }
-
-    if (isset($_GET['export']) || $action === 'export') {
-        $showDeleted = ($_GET['show_deleted'] ?? '') === '1';
-        $sql = "SELECT CourseID, Course_Code, Course_Name, DepartmentID, created_at" . ($showDeleted ? ", deleted_at" : "") . " FROM course";
-        if (!$showDeleted && $pdo->query("SHOW COLUMNS FROM course LIKE 'deleted_at'")->fetch()) $sql .= " WHERE deleted_at IS NULL";
-        $sql .= " ORDER BY Course_Name ASC";
-        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+// Export CSV if requested (GET)
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['export'])) {
+    // produce CSV of courses
+    try {
+        $sth = $pdo->query("SELECT c.CourseID, c.Course_Code, c.Course_Name, d.Dept_Code, d.Dept_Name, c.deleted_at FROM course c LEFT JOIN department d ON d.DepartmentID = c.DepartmentID ORDER BY d.Dept_Code, c.Course_Code");
+        $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="courses.csv"');
-        $out = fopen('php://output','w'); fputcsv($out, array_keys($rows[0] ?? ['CourseID','Course_Code','Course_Name','DepartmentID','created_at']));
-        foreach($rows as $r) fputcsv($out,$r); fclose($out); exit;
+        header('Content-Disposition: attachment; filename="courses_export_' . date('Ymd_His') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['CourseID','Course_Code','Course_Name','Dept_Code','Dept_Name','deleted_at']);
+        foreach ($rows as $r) fputcsv($out, [$r['CourseID'],$r['Course_Code'],$r['Course_Name'],$r['Dept_Code'], $r['Dept_Name'], $r['deleted_at']]);
+        fclose($out);
+        exit;
+    } catch(Exception $e) {
+        header($_SERVER['SERVER_PROTOCOL'] . ' 500 Internal Server Error', true, 500);
+        echo "CSV export failed: " . $e->getMessage();
+        exit;
     }
+}
 
-    json_out(['ok'=>false,'error'=>'unknown action']);
-} catch (Exception $e) {
-    json_out(['ok'=>false,'error'=>$e->getMessage()]);
+// For POST actions
+$action = $_POST['action'] ?? '';
+if (!$action) json_resp(['ok'=>false, 'error'=>'No action specified']);
+
+// sanitize helper
+function str_or_null($v) {
+    $t = trim((string)$v);
+    return $t === '' ? null : $t;
+}
+
+try {
+    if ($action === 'add' || $action === 'edit') {
+        $course_code = str_or_null($_POST['course_code'] ?? '');
+        $course_name = trim($_POST['course_name'] ?? '');
+        $department_id = (int)($_POST['department_id'] ?? 0);
+        if ($course_name === '') json_resp(['ok'=>false, 'error'=>'Course name is required']);
+        if ($department_id <= 0) json_resp(['ok'=>false, 'error'=>'Select a valid department']);
+
+        if ($action === 'add') {
+            $ins = $pdo->prepare("INSERT INTO course (Course_Code, Course_Name, DepartmentID) VALUES (:code, :name, :dept)");
+            $ins->execute([':code'=>$course_code, ':name'=>$course_name, ':dept'=>$department_id]);
+            $newId = (int)$pdo->lastInsertId();
+            $row = $pdo->prepare("SELECT CourseID, Course_Code, Course_Name, DepartmentID, (SELECT Dept_Name FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Name, (SELECT Dept_Code FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Code, " . ($has_deleted_at ? "deleted_at" : "NULL AS deleted_at") . " FROM course WHERE CourseID = :id");
+            $row->execute([':id'=>$newId]);
+            $course = $row->fetch(PDO::FETCH_ASSOC);
+            json_resp(['ok'=>true, 'action'=>'add', 'course'=>$course]);
+        } else {
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id <= 0) json_resp(['ok'=>false, 'error'=>'Missing id for edit']);
+            $upd = $pdo->prepare("UPDATE course SET Course_Code = :code, Course_Name = :name, DepartmentID = :dept WHERE CourseID = :id");
+            $upd->execute([':code'=>$course_code, ':name'=>$course_name, ':dept'=>$department_id, ':id'=>$id]);
+            $row = $pdo->prepare("SELECT CourseID, Course_Code, Course_Name, DepartmentID, (SELECT Dept_Name FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Name, (SELECT Dept_Code FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Code, " . ($has_deleted_at ? "deleted_at" : "NULL AS deleted_at") . " FROM course WHERE CourseID = :id");
+            $row->execute([':id'=>$id]);
+            $course = $row->fetch(PDO::FETCH_ASSOC);
+            json_resp(['ok'=>true, 'action'=>'edit', 'course'=>$course]);
+        }
+
+    } elseif ($action === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) json_resp(['ok'=>false, 'error'=>'Missing id']);
+        if ($has_deleted_at) {
+            $stmt = $pdo->prepare("UPDATE course SET deleted_at = NOW() WHERE CourseID = :id");
+            $stmt->execute([':id'=>$id]);
+        } else {
+            // If no deleted_at, do a hard delete (we choose to not silently delete - return error)
+            json_resp(['ok'=>false, 'error'=>'Soft-delete not supported (missing deleted_at)']);
+        }
+        $row = $pdo->prepare("SELECT CourseID, Course_Code, Course_Name, DepartmentID, (SELECT Dept_Name FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Name, (SELECT Dept_Code FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Code, deleted_at FROM course WHERE CourseID = :id");
+        $row->execute([':id'=>$id]);
+        $c = $row->fetch(PDO::FETCH_ASSOC);
+        json_resp(['ok'=>true, 'action'=>'delete', 'course'=>$c]);
+
+    } elseif ($action === 'undo') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) json_resp(['ok'=>false, 'error'=>'Missing id']);
+        if ($has_deleted_at) {
+            $stmt = $pdo->prepare("UPDATE course SET deleted_at = NULL WHERE CourseID = :id");
+            $stmt->execute([':id'=>$id]);
+        } else {
+            json_resp(['ok'=>false, 'error'=>'Undo not supported (missing deleted_at)']);
+        }
+        $row = $pdo->prepare("SELECT CourseID, Course_Code, Course_Name, DepartmentID, (SELECT Dept_Name FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Name, (SELECT Dept_Code FROM department WHERE DepartmentID = course.DepartmentID) AS Dept_Code, deleted_at FROM course WHERE CourseID = :id");
+        $row->execute([':id'=>$id]);
+        $c = $row->fetch(PDO::FETCH_ASSOC);
+        json_resp(['ok'=>true, 'action'=>'undo', 'course'=>$c]);
+
+    } elseif ($action === 'bulk_delete') {
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids)) json_resp(['ok'=>false, 'error'=>'Invalid ids']);
+        $ids = array_map('intval', $ids);
+        $ids = array_filter($ids);
+        if (empty($ids)) json_resp(['ok'=>false, 'error'=>'No ids provided']);
+        if ($has_deleted_at) {
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $pdo->prepare("UPDATE course SET deleted_at = NOW() WHERE CourseID IN ($in)");
+            $stmt->execute($ids);
+            json_resp(['ok'=>true, 'action'=>'bulk_delete', 'count'=>count($ids)]);
+        } else {
+            json_resp(['ok'=>false, 'error'=>'Bulk delete unsupported (missing deleted_at)']);
+        }
+
+    } else {
+        json_resp(['ok'=>false, 'error'=>'Unknown action']);
+    }
+} catch (Exception $ex) {
+    json_resp(['ok'=>false, 'error'=>$ex->getMessage()]);
 }

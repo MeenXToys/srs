@@ -1,69 +1,158 @@
 <?php
 // admin/api/classes.php
-header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../../config.php';
 require_admin();
-function json_out($d){ echo json_encode($d); exit; }
-function sp($k){ return isset($_POST[$k]) ? trim((string)$_POST[$k]) : null; }
-$method = $_SERVER['REQUEST_METHOD'];
-if ($method !== 'POST' && !isset($_GET['export'])) json_out(['ok'=>false,'error'=>'Invalid method']);
-if ($method === 'POST') {
-    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) json_out(['ok'=>false,'error'=>'Invalid CSRF token']);
+
+header('Content-Type: application/json; charset=utf-8');
+
+if (!function_exists('e')) {
+    function e($s){ return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 }
-$action = trim($_POST['action'] ?? $_GET['action'] ?? '');
+
+// CSRF check for POST
+function check_csrf() {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $bodyToken = $_POST['csrf_token'] ?? $_POST['csrf'] ?? '';
+        if (!$bodyToken || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $bodyToken)) {
+            http_response_code(403);
+            echo json_encode(['ok'=>false,'error'=>'Invalid CSRF token']);
+            exit;
+        }
+    }
+}
+
+// pick_col helper
+function pick_col(array $cols, array $candidates, $default = null) {
+    foreach ($candidates as $cand) {
+        foreach ($cols as $c) {
+            if (strcasecmp($c, $cand) === 0) return $c;
+        }
+    }
+    return $default;
+}
+
+// GET: get_courses for department
+if (isset($_GET['get_courses'])) {
+    $dept = (int)($_GET['dept_id'] ?? 0);
+    try {
+        $stmt = $pdo->prepare("SELECT CourseID, Course_Code, Course_Name FROM course WHERE DepartmentID = :dept AND (deleted_at IS NULL OR deleted_at IS NOT NULL) ORDER BY Course_Code IS NULL, Course_Code ASC, Course_Name ASC");
+        $stmt->execute([':dept'=>$dept]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode($rows);
+    } catch (Exception $e) {
+        echo json_encode([]);
+    }
+    exit;
+}
+
+// GET export CSV
+if (isset($_GET['export'])) {
+    try {
+        $sql = "SELECT cl.ClassID, cl.Class_Code, cl.Class_Name, cl.Semester, c.Course_Code, c.Course_Name, d.Dept_Code, d.Dept_Name FROM `class` cl LEFT JOIN `course` c ON c.CourseID = cl.CourseID LEFT JOIN `department` d ON d.DepartmentID = c.DepartmentID ORDER BY cl.Semester ASC, d.Dept_Code ASC, c.Course_Code ASC, cl.Class_Code ASC";
+        $stmt = $pdo->query($sql);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=classes_export_' . date('Ymd') . '.csv');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['ClassID','Class_Code','Class_Name','Semester','Course_Code','Course_Name','Dept_Code','Dept_Name']);
+        foreach ($rows as $r) fputcsv($out, [$r['ClassID'],$r['Class_Code'],$r['Class_Name'],$r['Semester'],$r['Course_Code'],$r['Course_Name'],$r['Dept_Code'],$r['Dept_Name']]);
+        fclose($out);
+    } catch (Exception $e) {
+        echo "Error: " . e($e->getMessage());
+    }
+    exit;
+}
+
+// require CSRF for POST
+check_csrf();
+
+$action = $_POST['action'] ?? '';
+
 try {
     if ($action === 'add') {
-        $code = sp('class_code') ?: ''; $name = sp('class_name') ?: ''; $course = (int)sp('course_id');
-        if ($code==='' || $name==='') json_out(['ok'=>false,'error'=>'code/name required']);
-        $chk = $pdo->prepare("SELECT 1 FROM class WHERE Class_Code = :code LIMIT 1"); $chk->execute([':code'=>$code]);
-        if ($chk->fetch()) json_out(['ok'=>false,'error'=>'code exists']);
-        $stmt = $pdo->prepare("INSERT INTO class (Class_Code, Class_Name, CourseID) VALUES (:code, :name, :course)");
-        $stmt->execute([':code'=>$code,':name'=>$name,':course'=>($course?:null)]);
-        json_out(['ok'=>true,'id'=>$pdo->lastInsertId()]);
+        $class_code = trim($_POST['class_code'] ?? '');
+        $class_name = trim($_POST['class_name'] ?? '');
+        $course_id = (int)($_POST['course_id'] ?? 0);
+        $semester = trim($_POST['semester'] ?? '');
+
+        if (!$course_id) { echo json_encode(['ok'=>false,'error'=>'course_id required']); exit; }
+        if ($class_code === '' || $class_name === '') { echo json_encode(['ok'=>false,'error'=>'Code and Name required']); exit; }
+
+        $sql = "INSERT INTO `class` (Class_Code, Class_Name, CourseID, Semester) VALUES (:code, :name, :course, :sem)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':code'=>$class_code, ':name'=>$class_name, ':course'=>$course_id, ':sem'=>$semester]);
+        echo json_encode(['ok'=>true,'id'=>$pdo->lastInsertId()]);
+        exit;
     }
 
     if ($action === 'edit') {
-        $id=(int)($_POST['id']??0); $code=sp('class_code')?:''; $name=sp('class_name')?:''; $course=(int)sp('course_id');
-        if ($id<=0 || $code==='' || $name==='') json_out(['ok'=>false,'error'=>'invalid input']);
-        $stmt=$pdo->prepare("UPDATE class SET Class_Code=:code, Class_Name=:name, CourseID=:course WHERE ClassID=:id");
-        $stmt->execute([':code'=>$code,':name'=>$name,':course'=>$course?:null,':id'=>$id]);
-        json_out(['ok'=>true]);
+        $id = (int)($_POST['id'] ?? 0);
+        $class_code = trim($_POST['class_code'] ?? '');
+        $class_name = trim($_POST['class_name'] ?? '');
+        $course_id = (int)($_POST['course_id'] ?? 0);
+        $semester = trim($_POST['semester'] ?? '');
+
+        if (!$id) { echo json_encode(['ok'=>false,'error'=>'id required']); exit; }
+        if (!$course_id) { echo json_encode(['ok'=>false,'error'=>'course_id required']); exit; }
+
+        $sql = "UPDATE `class` SET Class_Code = :code, Class_Name = :name, CourseID = :course, Semester = :sem WHERE ClassID = :id";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':code'=>$class_code, ':name'=>$class_name, ':course'=>$course_id, ':sem'=>$semester, ':id'=>$id]);
+        echo json_encode(['ok'=>true]);
+        exit;
     }
 
     if ($action === 'delete') {
-        $id=(int)($_POST['id']??0); if ($id<=0) json_out(['ok'=>false,'error'=>'invalid id']);
-        $hasDeleted = (bool)$pdo->query("SHOW COLUMNS FROM class LIKE 'deleted_at'")->fetch();
-        if ($hasDeleted) $pdo->prepare("UPDATE class SET deleted_at = NOW() WHERE ClassID = :id")->execute([':id'=>$id]);
-        else $pdo->prepare("DELETE FROM class WHERE ClassID = :id")->execute([':id'=>$id]);
-        json_out(['ok'=>true]);
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['ok'=>false,'error'=>'id required']); exit; }
+        $hasDeletedAt = (bool)$pdo->query("SHOW COLUMNS FROM `class` LIKE 'deleted_at'")->fetch();
+        if ($hasDeletedAt) {
+            $stmt = $pdo->prepare("UPDATE `class` SET deleted_at = NOW() WHERE ClassID = :id");
+            $stmt->execute([':id'=>$id]);
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM `class` WHERE ClassID = :id");
+            $stmt->execute([':id'=>$id]);
+        }
+        echo json_encode(['ok'=>true]);
+        exit;
     }
 
     if ($action === 'undo') {
-        $id=(int)($_POST['id']??0); if ($id<=0) json_out(['ok'=>false,'error'=>'invalid id']);
-        $pdo->prepare("UPDATE class SET deleted_at = NULL WHERE ClassID = :id")->execute([':id'=>$id]);
-        json_out(['ok'=>true]);
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['ok'=>false,'error'=>'id required']); exit; }
+        $hasDeletedAt = (bool)$pdo->query("SHOW COLUMNS FROM `class` LIKE 'deleted_at'")->fetch();
+        if ($hasDeletedAt) {
+            $stmt = $pdo->prepare("UPDATE `class` SET deleted_at = NULL WHERE ClassID = :id");
+            $stmt->execute([':id'=>$id]);
+            echo json_encode(['ok'=>true]);
+        } else {
+            echo json_encode(['ok'=>false,'error'=>'undo not supported (no deleted_at)']);
+        }
+        exit;
     }
 
     if ($action === 'bulk_delete') {
-        $ids = $_POST['ids'] ?? []; if (!is_array($ids) || empty($ids)) json_out(['ok'=>false,'error'=>'no ids']);
-        $ids=array_map('intval',$ids); $in=implode(',', array_fill(0,count($ids),'?'));
-        $hasDeleted = (bool)$pdo->query("SHOW COLUMNS FROM class LIKE 'deleted_at'")->fetch();
-        if ($hasDeleted) { $stmt=$pdo->prepare("UPDATE class SET deleted_at = NOW() WHERE ClassID IN ($in)"); $stmt->execute($ids); }
-        else { $stmt=$pdo->prepare("DELETE FROM class WHERE ClassID IN ($in)"); $stmt->execute($ids); }
-        json_out(['ok'=>true,'count'=>count($ids)]);
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids) || empty($ids)) { echo json_encode(['ok'=>false,'error'=>'ids required']); exit; }
+        $idsFiltered = array_map('intval', $ids);
+        $placeholders = implode(',', array_fill(0,count($idsFiltered),'?'));
+        $hasDeletedAt = (bool)$pdo->query("SHOW COLUMNS FROM `class` LIKE 'deleted_at'")->fetch();
+        if ($hasDeletedAt) {
+            $sql = "UPDATE `class` SET deleted_at = NOW() WHERE ClassID IN ($placeholders)";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($idsFiltered);
+        } else {
+            $sql = "DELETE FROM `class` WHERE ClassID IN ($placeholders)";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($idsFiltered);
+        }
+        echo json_encode(['ok'=>true,'count'=>count($idsFiltered)]);
+        exit;
     }
 
-    if (isset($_GET['export']) || $action === 'export') {
-        $showDeleted = ($_GET['show_deleted'] ?? '') === '1';
-        $sql = "SELECT ClassID, Class_Code, Class_Name, CourseID, created_at" . ($showDeleted ? ", deleted_at" : "") . " FROM class";
-        if (!$showDeleted && $pdo->query("SHOW COLUMNS FROM class LIKE 'deleted_at'")->fetch()) $sql .= " WHERE deleted_at IS NULL";
-        $sql .= " ORDER BY Class_Name ASC";
-        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="classes.csv"');
-        $out=fopen('php://output','w'); fputcsv($out,array_keys($rows[0] ?? ['ClassID','Class_Code','Class_Name','CourseID','created_at']));
-        foreach($rows as $r) fputcsv($out,$r); fclose($out); exit;
-    }
-
-    json_out(['ok'=>false,'error'=>'unknown action']);
-} catch (Exception $e) { json_out(['ok'=>false,'error'=>$e->getMessage()]); }
+    echo json_encode(['ok'=>false,'error'=>'Unknown action']);
+} catch (Exception $e) {
+    echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);
+    exit;
+}
