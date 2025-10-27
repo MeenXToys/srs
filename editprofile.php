@@ -1,4 +1,5 @@
 <?php
+include 'db_connect.php';
 require_once 'config.php';
 require_login();
 
@@ -19,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $pdo->beginTransaction();
             if ($password) {
                 $pwHash = password_hash($password, PASSWORD_DEFAULT);
                 $stmt = $pdo->prepare("UPDATE `user` SET Email = ?, Password_Hash = ? WHERE UserID = ?");
@@ -28,22 +28,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE `user` SET Email = ? WHERE UserID = ?");
                 $stmt->execute([$email, $userId]);
             }
+
             $stmt = $pdo->prepare("UPDATE student SET FullName = ?, IC_Number = ?, Phone = ?, Semester = ? WHERE UserID = ?");
             $stmt->execute([$fullname, $ic, $phone, $semester, $userId]);
-            $pdo->commit();
-            $msg = "Profile updated.";
+
+            $msg = "Profile updated successfully.";
             $_SESSION['user']['Email'] = $email;
-            $_SESSION['user']['FullName'] = $fullname;
+
         } catch (Exception $e) {
-            $pdo->rollBack();
-            $errors[] = $e->getMessage();
+            $errors[] = "Database error: " . $e->getMessage();
         }
     }
 }
 
-$stmt = $pdo->prepare("SELECT u.Email, s.FullName, s.IC_Number, s.Phone, s.Semester FROM `user` u LEFT JOIN student s ON s.UserID = u.UserID WHERE u.UserID = ?");
+$stmt = $pdo->prepare("SELECT u.Email, s.FullName, s.IC_Number, s.Phone, s.Semester 
+                       FROM `user` u 
+                       LEFT JOIN student s ON s.UserID = u.UserID 
+                       WHERE u.UserID = ?");
 $stmt->execute([$userId]);
-$profile = $stmt->fetch() ?: [];
+$profile = $stmt->fetch();
 ?>
 <!doctype html>
 <html lang="en">
@@ -108,3 +111,5 @@ $profile = $stmt->fetch() ?: [];
   <div style="clear:both;"></div>
 </body>
 </html>
+
+

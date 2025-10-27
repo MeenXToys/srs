@@ -132,3 +132,85 @@ h1 { text-align:center; font-size:2.4rem; margin-top:20px; color:#e6eef8; font-w
   .timetable-image { width:100%; height:auto; }
   .activities-grid { grid-template-columns: 1fr; }
 }
+
+/* ===============================
+   INDEX PAGE SECTIONS STYLING
+================================= */
+
+section {
+  padding: 80px 10%;
+  background: #0f172a;
+  color: #fff;
+  text-align: center;
+}
+
+section:nth-of-type(even) {
+  background: #1e293b;
+}
+
+section h2 {
+  font-size: 2.4rem;
+  margin-bottom: 40px;
+  color: var(--accent);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 28px;
+  justify-items: center;
+}
+
+.card {
+  background: var(--panel);
+  border-radius: var(--card-radius);
+  padding: 30px 24px;
+  box-shadow: var(--shadow-1);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  width: 100%;
+  max-width: 340px;
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 14px 32px rgba(0,0,0,0.6);
+}
+
+.card i {
+  font-size: 2.5rem;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.card h3 {
+  font-size: 1.4rem;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.card p {
+  color: #cbd5e1;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+footer {
+  text-align: center;
+  padding: 20px;
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 0.95rem;
+}
+
+footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
+
