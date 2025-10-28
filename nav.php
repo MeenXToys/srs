@@ -1,7 +1,17 @@
 <?php
-// nav.php - include on every page
-$loggedIn = !empty($_SESSION['user']);
-$role = $loggedIn ? $_SESSION['user']['Role'] : null;
+// nav.php - ordinary user navbar (place on non-admin pages)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// current user info (from session)
+$user = $_SESSION['user'] ?? null;
+$loggedIn = !empty($user);
+$role = $user['Role'] ?? null;
+$isAdmin = $loggedIn && strcasecmp($role, 'Admin') === 0;
+
+// safe echo helper
+
 ?>
 <link rel="icon" href="img/favicon.png" type="image/png">
 <link rel="stylesheet" href="style.css">
@@ -18,9 +28,12 @@ $role = $loggedIn ? $_SESSION['user']['Role'] : null;
       <a href="dashboard.php">Dashboard</a>
       <a href="editprofile.php">Edit Profile</a>
       <a href="timetable.php">Timetable</a>
-      <?php if ($role === 'Admin'): ?>
+
+      <?php if ($isAdmin): ?>
+        <!-- Optional: simple admin link (only visible to admins) -->
         <a href="admin/index.php">Admin</a>
       <?php endif; ?>
+
       <a href="logout.php">Log Out</a>
       <a href="contactus.php" class="contact-button">Contact Us</a>
     <?php else: ?>

@@ -41,10 +41,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmt = $pdo->prepare("SELECT u.Email, s.FullName, s.IC_Number, s.Phone, s.Semester 
-                       FROM `user` u 
-                       LEFT JOIN student s ON s.UserID = u.UserID 
-                       WHERE u.UserID = ?");
+$stmt = $pdo->prepare("
+    SELECT 
+        u.Email,
+        s.FullName,
+        s.IC_Number,
+        s.Phone,
+        c.Class_Name,
+        c.Semester
+    FROM `user` u
+    LEFT JOIN student s ON s.UserID = u.UserID
+    LEFT JOIN class c ON s.ClassID = c.ClassID
+    WHERE u.UserID = ?
+");
+
 $stmt->execute([$userId]);
 $profile = $stmt->fetch();
 ?>
