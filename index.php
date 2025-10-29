@@ -12,6 +12,7 @@ require_once 'config.php';
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 
+
 <body>
   <?php include 'nav.php'; ?>
 
@@ -25,6 +26,28 @@ require_once 'config.php';
       <a href="timetable.php" class="btn btn-third">Timetable</a>
     </div>
   </div>
+
+  <section class="events-section">
+  <h2>Upcoming Events</h2>
+
+  <div class="slider">
+    <div class="slides fade">
+      <img src="img/minicarnival.jpg" alt="Event 1">
+      <div class="caption">Sports Carnival 2025</div>
+    </div>
+
+    <div class="slides fade">
+      <img src="img/storytelling_competition.jpg" alt="Event 2">
+      <div class="caption">Storytelling Competition</div>
+    </div>
+
+    <div class="slides fade">
+      <img src="img/openday.jpg" alt="Event 3">
+      <div class="caption">GMI Open Day</div>
+    </div>
+  </div>
+</section>
+
 
   <!-- FEATURES -->
   <section>
@@ -69,6 +92,24 @@ require_once 'config.php';
       </div>
     </div>
   </section>
+
+  <script>
+let slideIndex = 0;
+showSlides();
+
+function showSlides() {
+  let slides = document.getElementsByClassName("slides");
+  for (let i = 0; i < slides.length; i++) {
+    slides[i].style.display = "none";
+  }
+  slideIndex++;
+  if (slideIndex > slides.length) { slideIndex = 1 }
+  slides[slideIndex - 1].style.display = "block";
+  slides[slideIndex - 1].classList.add("fade");
+  setTimeout(showSlides, 4000); // change every 4 seconds
+}
+</script>
+
 
   <!-- FOOTER -->
   <footer>
