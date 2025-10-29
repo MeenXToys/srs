@@ -1,125 +1,145 @@
 <?php
-include 'db_connect.php';
 require_once 'config.php';
 require_login();
 
 $userId = $_SESSION['user']['UserID'];
 $msg = '';
-$errors = [];
+$error = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
-    $password = $_POST['password'] ?? null;
-    $ic = trim($_POST['ic'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $semester = trim($_POST['semester'] ?? '');
-    $fullname = trim($_POST['name'] ?? '');
+try {
+    // Fetch current user info
+    $stmt = $pdo->prepare("
+        SELECT 
+            s.FullName,
+            s.IC_Number,
+            s.Phone,
+            c.Class_Name,
+            c.Semester,
+            u.Email
+        FROM student s
+        LEFT JOIN class c ON s.ClassID = c.ClassID
+        LEFT JOIN user u ON s.UserID = u.UserID
+        WHERE u.UserID = ?
+    ");
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$email) $errors[] = "Valid email required.";
-    if (!$fullname) $errors[] = "Name required.";
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $fullName = trim($_POST['FullName']);
+        $icNumber = trim($_POST['IC_Number']);
+        $phone = trim($_POST['Phone']);
+        $email = trim($_POST['Email']);
+        $semester = trim($_POST['Semester']);
+        $password = $_POST['Password'];
 
-    if (empty($errors)) {
-        try {
-            if ($password) {
-                $pwHash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE `user` SET Email = ?, Password_Hash = ? WHERE UserID = ?");
-                $stmt->execute([$email, $pwHash, $userId]);
+        // Validation
+        if (empty($fullName) || empty($email) || empty($icNumber)) {
+            $error = "Please fill in all required fields.";
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = "Invalid email format.";
+        } elseif (!preg_match('/^\d{10,12}$/', $phone)) {
+            $error = "Phone number must contain 10–12 digits.";
+        } else {
+            // Update user table (email + optional password)
+            if (!empty($password)) {
+                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("UPDATE user SET Email = ?, Password = ? WHERE UserID = ?");
+                $stmt->execute([$email, $hashedPassword, $userId]);
             } else {
-                $stmt = $pdo->prepare("UPDATE `user` SET Email = ? WHERE UserID = ?");
+                $stmt = $pdo->prepare("UPDATE user SET Email = ? WHERE UserID = ?");
                 $stmt->execute([$email, $userId]);
             }
 
-            $stmt = $pdo->prepare("UPDATE student SET FullName = ?, IC_Number = ?, Phone = ?, Semester = ? WHERE UserID = ?");
-            $stmt->execute([$fullname, $ic, $phone, $semester, $userId]);
+            // Update student table (info + semester)
+            $stmt = $pdo->prepare("
+                UPDATE student 
+                SET FullName = ?, IC_Number = ?, Phone = ?, Semester = ? 
+                WHERE UserID = ?
+            ");
+            $stmt->execute([$fullName, $icNumber, $phone, $semester, $userId]);
 
-            $msg = "Profile updated successfully.";
-            $_SESSION['user']['Email'] = $email;
-
-        } catch (Exception $e) {
-            $errors[] = "Database error: " . $e->getMessage();
+            $msg = "✅ Profile updated successfully.";
         }
     }
+} catch (PDOException $e) {
+    $error = "Database error: " . $e->getMessage();
 }
-
-$stmt = $pdo->prepare("
-    SELECT 
-        u.Email,
-        s.FullName,
-        s.IC_Number,
-        s.Phone,
-        c.Class_Name,
-        c.Semester
-    FROM `user` u
-    LEFT JOIN student s ON s.UserID = u.UserID
-    LEFT JOIN class c ON s.ClassID = c.ClassID
-    WHERE u.UserID = ?
-");
-
-$stmt->execute([$userId]);
-$profile = $stmt->fetch();
 ?>
+
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Edit Profile — GMI</title>
+  <title>Edit Profile | GMI Student Portal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="img/favicon.png" type="image/png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <?php include 'nav.php'; ?>
 
-  <div class="left-section">
-    <div class="left-content">
-      <h1>EDIT PROFILE</h1>
+  <div class="container" style="max-width:600px; margin: 60px auto; background:#fff; padding:30px; border-radius:20px; box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+  <h2>Edit Profile</h2>
+
+  <?php if (isset($success_message)): ?>
+    <div class="alert alert-success"><?= htmlspecialchars($success_message) ?></div>
+  <?php elseif (isset($error_message)): ?>
+    <div class="alert alert-danger"><?= htmlspecialchars($error_message) ?></div>
+  <?php endif; ?>
+
+  <form method="post" action="" onsubmit="return validateForm()">
+    <div class="input-group">
+      <label>Full Name</label>
+      <input type="text" name="FullName" value="<?= htmlspecialchars($FullName ?? '') ?>" required>
     </div>
-  </div>
 
-  <div class="right-section">
-    <div class="login-form">
-      <h2>EDIT PROFILE</h2>
-      <?php if ($msg): ?>
-        <div style="background:#062a10;color:#6bff99;padding:8px;border-radius:8px;margin-bottom:10px;"><?=htmlspecialchars($msg)?></div>
-      <?php endif; ?>
-      <?php if (!empty($errors)): ?>
-        <div style="background:#ffe6e6;padding:8px;border-radius:8px;color:#900;margin-bottom:8px;">
-          <?php foreach ($errors as $e): ?>
-            <div><?=htmlspecialchars($e)?></div>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
-
-      <form method="post">
-        <div class="form-row">
-          <div class="form-group"><label>Email:</label><input type="email" name="email" required value="<?=htmlspecialchars($profile['Email'] ?? '')?>"></div>
-          <div class="form-group"><label>Password (leave blank to keep)</label><input type="password" name="password"></div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group"><label>Name:</label><input type="text" name="name" required value="<?=htmlspecialchars($profile['FullName'] ?? '')?>"></div>
-          <div class="form-group"><label>Semester:</label>
-            <select name="semester">
-              <option value="">-- Select --</option>
-              <?php for($i=1;$i<=6;$i++): $val="Sem$i"; ?>
-                <option value="<?=$val?>" <?= ( ($profile['Semester']??'')===$val ? 'selected':'') ?>>Semester <?=$i?></option>
-              <?php endfor; ?>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group"><label>IC Number:</label><input type="text" name="ic" value="<?=htmlspecialchars($profile['IC_Number'] ?? '')?>"></div>
-          <div class="form-group"><label>Phone:</label><input type="tel" name="phone" value="<?=htmlspecialchars($profile['Phone'] ?? '')?>"></div>
-        </div>
-
-        <button class="register-button" type="submit">SAVE CHANGES</button>
-      </form>
+    <div class="input-group">
+      <label>IC Number</label>
+      <input type="text" name="IC_Number" value="<?= htmlspecialchars($IC_Number ?? '') ?>" required pattern="\d{12}" title="Please enter 12 digits only.">
     </div>
-  </div>
 
-  <div style="clear:both;"></div>
-</body>
-</html>
+    <div class="input-group">
+      <label>Phone Number</label>
+      <input type="text" name="Phone" value="<?= htmlspecialchars($Phone ?? '') ?>" required pattern="\d{10,11}" title="Enter 10 or 11 digits only.">
+    </div>
 
+    <div class="input-group">
+      <label>Email</label>
+      <input type="email" name="Email" value="<?= htmlspecialchars($Email ?? '') ?>" required>
+    </div>
 
+    <div class="input-group">
+      <label>Semester</label>
+      <select name="Semester" required>
+        <?php for ($i = 1; $i <= 8; $i++): ?>
+          <option value="<?= $i ?>" <?= ($Semester == $i) ? 'selected' : '' ?>>Semester <?= $i ?></option>
+        <?php endfor; ?>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label>New Password (optional)</label>
+      <input type="password" name="Password" placeholder="Leave blank to keep current password">
+    </div>
+
+    <div class="form-actions" style="margin-top:20px;">
+      <button type="submit" class="btn btn-primary">Update Profile</button>
+      <a href="index.php" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function validateForm() {
+  const phone = document.querySelector('[name="Phone"]').value.trim();
+  const ic = document.querySelector('[name="IC_Number"]').value.trim();
+  if (!/^\d{12}$/.test(ic)) {
+    alert("IC Number must be 12 digits.");
+    return false;
+  }
+  if (!/^\d{10,11}$/.test(phone)) {
+    alert("Phone number must be 10 or 11 digits.");
+    return false;
+  }
+  return true;
+}
+</script>
