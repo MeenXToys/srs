@@ -218,9 +218,47 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 .left-buttons { flex: 0 0 auto; }
 .right-buttons { margin-left: auto; display:flex; align-items:center; gap:8px; }
 
-/* toggle button match other frames */
-.toggle-btn { border-radius:10px; padding:10px 16px; color:#fff; text-decoration:none; font-weight:700; background:linear-gradient(90deg,#2563eb,#1d4ed8); }
-.toggle-btn.active-toggle { background: linear-gradient(90deg,#10b981,#0891b2); color:#072014; }
+/* ===== Toggle button: match Department frame (red with red dot) ===== */
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 800;
+  color: #ffffff;
+  text-decoration: none;
+  background: linear-gradient(90deg, #ef4444, #dc2626); /* red gradient */
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.18);
+  border: 0;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+  position: relative;
+}
+.toggle-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(220,38,38,0.22); }
+
+/* small red circular indicator on the left */
+.toggle-btn::before{
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff8a8a 0%, #b91c1c 70%);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.18);
+  margin-left: -6px; /* tiny pull so dot sits visually close to left padding */
+}
+
+/* Active state (when showing deleted -> switch to "Show Active" green style) */
+.toggle-btn.active-toggle {
+  background: linear-gradient(90deg, #10b981, #059669);
+  box-shadow: 0 8px 24px rgba(16,185,129,0.16);
+  color: #ffffff;
+}
+.toggle-btn.active-toggle::before {
+  background: radial-gradient(circle at 35% 30%, #7bf3c1 0%, #059669 70%);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.12);
+}
 
 /* table */
 .table-wrap{overflow:auto;border-radius:8px;margin-top:8px;}
@@ -280,8 +318,8 @@ th{color:var(--muted);text-align:left;font-weight:700;font-size:0.95rem;}
 
       <?php if ($flash): ?><div id="pageFlash" class="toast show"><?= e($flash) ?></div><?php endif; ?>
 
-      <!-- Filters -->
-      <form id="searchForm" method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+      <!-- ===== Row 1: Filters (Search / per / dept / sem + Search/Clear on right) ===== -->
+      <form id="searchForm" method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
         <input name="q" class="search-input" placeholder="Search code or name..." value="<?= e($q) ?>">
 
         <select name="per" class="search-input small" onchange="this.form.submit()">
@@ -310,7 +348,7 @@ th{color:var(--muted);text-align:left;font-weight:700;font-size:0.95rem;}
         </div>
       </form>
 
-      <!-- Actions -->
+      <!-- ===== Row 2: Action buttons (Add / Export / Delete Selected) + Show Deleted toggle ===== -->
       <div class="top-actions" aria-label="Actions">
         <div class="left-buttons">
           <button id="openAddBtn" class="add-btn">＋ Add Class</button>
@@ -323,12 +361,12 @@ th{color:var(--muted);text-align:left;font-weight:700;font-size:0.95rem;}
             <a class="toggle-btn active-toggle" href="classes.php">🟢 Show Active</a>
             <span style="color:var(--muted);margin-left:8px">Viewing deleted (<?= (int)$deletedCount ?>)</span>
           <?php else: ?>
-            <a class="toggle-btn" href="classes.php?show_deleted=1">🔴 Show Deleted <?= $deletedCount ? "({$deletedCount})" : '' ?></a>
+            <a class="toggle-btn" href="classes.php?show_deleted=1">Show Deleted <?= $deletedCount ? "({$deletedCount})" : '' ?></a>
           <?php endif; ?>
         </div>
       </div>
 
-      <!-- List -->
+      <!-- ===== List card ===== -->
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <h2 style="margin:0;color:#cfe8ff;">Class List</h2>
@@ -617,7 +655,7 @@ document.getElementById('deleteConfirm').addEventListener('click', function(){
 document.querySelectorAll('[data-undo-id]').forEach(btn=>{
     btn.addEventListener('click', ()=> {
         const id = btn.dataset.undoId;
-        postJSON('api/classes.php', { action: 'undo', id: id }).then(resp=>{
+        postJSON('api/classes.php', { action: 'undo', id: id }).then(resp=>{  
             if (resp && resp.ok) { showToast('Restored'); setTimeout(()=>location.reload(),600); }
             else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'));
         }).catch(()=>showToast('Network error'));
