@@ -1,4 +1,6 @@
-<?php require_once 'config.php'; ?>
+<?php 
+require_once 'config.php';
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,13 +9,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="img/favicon.png" type="image/png">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
+
+
 <body>
   <?php include 'nav.php'; ?>
 
-  <div class="hero" style="height:80vh; background: linear-gradient(rgba(19,26,34,0.85), rgba(19,26,34,0.85)), url('img/indexgmi.png') no-repeat center/cover;">
+  <!-- HERO SECTION -->
+  <div class="hero">
     <h1>STUDENT REGISTRATION SYSTEM</h1>
-    <p>Register online in minutes. Secure, fast and paperless!</p>
+    <p>Register online in minutes. Secure, fast, and paperless!</p>
     <div class="hero-buttons">
       <a href="registration.php" class="btn btn-primary">Register Now</a>
       <a href="login.php" class="btn btn-secondary">Log In</a>
@@ -21,24 +27,91 @@
     </div>
   </div>
 
+  <section class="events-section">
+  <h2>Upcoming Events</h2>
+
+  <div class="slider">
+    <div class="slides fade">
+      <img src="img/minicarnival.jpg" alt="Event 1">
+      <div class="caption">Sports Carnival 2025</div>
+    </div>
+
+    <div class="slides fade">
+      <img src="img/storytelling_competition.jpg" alt="Event 2">
+      <div class="caption">Storytelling Competition</div>
+    </div>
+
+    <div class="slides fade">
+      <img src="img/openday.jpg" alt="Event 3">
+      <div class="caption">GMI Open Day</div>
+    </div>
+  </div>
+</section>
+
+
+  <!-- FEATURES -->
   <section>
     <h2>Features</h2>
     <div class="grid">
-      <div class="card"><i class="fa fa-file-signature"></i><h3>Easy Enrollment</h3><p>Fill out forms online anytime, anywhere.</p></div>
-      <div class="card"><i class="fa fa-lock"></i><h3>Secure Data</h3><p>Protects student's info with advanced encryption.</p></div>
-      <div class="card"><i class="fa fa-chart-line"></i><h3>Track Applications</h3><p>Check your registration status instantly.</p></div>
+      <div class="card">
+        <i class="fa-solid fa-file-pen"></i>
+        <h3>Easy Enrollment</h3>
+        <p>Fill out forms online anytime, anywhere with ease.</p>
+      </div>
+      <div class="card">
+        <i class="fa-solid fa-lock"></i>
+        <h3>Secure Data</h3>
+        <p>Protects student information with advanced encryption.</p>
+      </div>
+      <div class="card">
+        <i class="fa-solid fa-chart-line"></i>
+        <h3>Track Applications</h3>
+        <p>Check your registration status instantly with real-time updates.</p>
+      </div>
     </div>
   </section>
 
+  <!-- HOW IT WORKS -->
   <section>
     <h2>How It Works</h2>
     <div class="grid">
-      <div class="card"><i class="fa fa-user"></i><h3>Create or Log In</h3><p>Sign up or log in to access the system.</p></div>
-      <div class="card"><i class="fa fa-clipboard-list"></i><h3>Fill in Registration Forms</h3><p>Complete your student details securely.</p></div>
-      <div class="card"><i class="fa fa-check-circle"></i><h3>Confirm and Get Approval</h3><p>Submit and wait for confirmation.</p></div>
+      <div class="card">
+        <i class="fa-solid fa-user"></i>
+        <h3>Create or Log In</h3>
+        <p>Sign up or log in to access your student portal.</p>
+      </div>
+      <div class="card">
+        <i class="fa-solid fa-clipboard-list"></i>
+        <h3>Fill in Registration Forms</h3>
+        <p>Complete your student details securely online.</p>
+      </div>
+      <div class="card">
+        <i class="fa-solid fa-check-circle"></i>
+        <h3>Confirm and Get Approval</h3>
+        <p>Submit and wait for confirmation from administration.</p>
+      </div>
     </div>
   </section>
 
+  <script>
+let slideIndex = 0;
+showSlides();
+
+function showSlides() {
+  let slides = document.getElementsByClassName("slides");
+  for (let i = 0; i < slides.length; i++) {
+    slides[i].style.display = "none";
+  }
+  slideIndex++;
+  if (slideIndex > slides.length) { slideIndex = 1 }
+  slides[slideIndex - 1].style.display = "block";
+  slides[slideIndex - 1].classList.add("fade");
+  setTimeout(showSlides, 4000); // change every 4 seconds
+}
+</script>
+
+
+  <!-- FOOTER -->
   <footer>
     &copy; <?=date('Y')?> GMI Student Registration System | <a href="contactus.php">Contact Us</a>
   </footer>
