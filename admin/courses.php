@@ -159,97 +159,139 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 <title>Courses — Admin</title>
 <link rel="stylesheet" href="../style.css">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+
+<!-- Bootstrap CSS for modals if needed -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
 <style>
-:root{--bg:#0f1724;--card:#0b1520;--muted:#94a3b8;--text:#e6eef8;--accent1:#7c3aed;--accent2:#6d28d9;--ok:#10b981;--danger:#ef4444;}
-.center-box{max-width:1100px;margin:0 auto;padding:18px;}
-.admin-controls{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;}
-.left-controls{display:flex;gap:8px;align-items:center;}
-.search-input{padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:var(--card);color:var(--text);min-width:220px;}
-.btn{display:inline-block;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;border:0;cursor:pointer;}
-.btn-muted{background:#374151;color:#fff;border-radius:8px;padding:8px 12px;border:0;cursor:pointer;}
-.add-btn{background:linear-gradient(180deg,var(--accent1),var(--accent2));color:#fff;padding:10px 16px;border-radius:8px;font-weight:700;border:0;cursor:pointer;}
-.card{background:var(--card);border-radius:10px;padding:18px;box-shadow:0 6px 18px rgba(0,0,0,0.4);}
+:root{
+  --bg:#0f1724;
+  --card:#07111a;
+  --panel-dark:#0b1220;
+  --muted:#9aa8bd;
+  --text:#e8f6ff;
+  --accent-blue-1:#2563eb;
+  --accent-blue-2:#1d4ed8;
+  --accent-red-1:#ef4444;
+  --accent-red-2:#dc2626;
+  --accent-purple-1:#7c3aed;
+  --accent-purple-2:#6d28d9;
+  --select-bg: rgba(255,255,255,0.02);
+  --select-border: rgba(255,255,255,0.04);
+  --select-contrast: #dff6ff;
+}
 
-/* toolbar */
-.top-actions { display:flex; align-items:center; gap:12px; padding:10px; background: rgba(255,255,255,0.01); border-radius:10px; margin-bottom:14px; justify-content:flex-start; }
-.top-actions > div { display:flex; gap:10px; align-items:center; }
-.left-buttons { flex: 0 0 auto; }
-.right-buttons { margin-left: auto; display:flex; align-items:center; gap:8px; }
-.btn-danger { background: linear-gradient(180deg,#dc2626,#b91c1c); color:#fff; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; }
-.toggle-btn { border-radius:8px; padding:8px 12px; color:#fff; text-decoration:none; font-weight:600; }
-.toggle-btn.active-toggle { background:#10b981; color:#072014; }
-.toggle-btn:not(.active-toggle) { background:#ef4444; }
-.toggle-label { color:var(--muted); font-size:0.9rem; font-style:italic; margin-left:6px; }
+/* page */
+body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
-/* search buttons same width */
+/* Use the same wide center box as classes.php */
+.center-box{
+  max-width: none !important;
+  width: calc(100% - 48px);
+  margin: auto;
+  padding: 22px 24px;
+  box-sizing: border-box;
+}
+
+/* Top actions & filters styling similar to classes.php */
+.admin-controls { margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.search-input{ padding:8px 12px; border-radius:10px; border:1px solid var(--select-border); background: var(--select-bg); color:var(--select-contrast); font-size:0.95rem; height:44px; }
 .search-buttons { display:flex; gap:8px; }
-.search-buttons button, .search-buttons a.btn-muted { width:90px; height:38px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; min-width:110px; height:44px; border-radius:12px; color:#fff; text-decoration:none; border:0; cursor:pointer; font-weight:500; font-size:1rem; box-shadow: 0 10px 30px rgba(2,6,23,0.6); }
+.add-btn{ background: linear-gradient(90deg,var(--accent-purple-1),var(--accent-purple-2)); min-width:130px; height:44px; border:1px solid rgba(255,255,255,0.04); }
+.btn-export{ background: linear-gradient(90deg,var(--accent-blue-1),var(--accent-blue-2)); min-width:130px; max-width:220px; height:44px; border:1px solid rgba(255,255,255,0.04); white-space:nowrap; }
+.btn-danger{ background: linear-gradient(90deg,var(--accent-red-1),var(--accent-red-2)); min-width:130px; height:44px; border:1px solid rgba(255,255,255,0.04); }
+.btn-muted{ padding:0 12px; min-width:80px; height:40px; border-radius:10px; background:#374151; color:white; border:1px solid rgba(255,255,255,0.03); }
 
-/* table */
-.table-wrap{overflow:auto;}
-table{width:100%;border-collapse:collapse;margin-top:12px;}
-th,td{padding:12px;border-top:1px solid rgba(255,255,255,0.03);color:var(--text);vertical-align:middle;}
-th{color:var(--muted);text-align:left;font-weight:700;}
-.code-badge{background:#071725;color:#7dd3fc;padding:6px 10px;border-radius:6px;font-weight:700;}
-.actions-inline{display:flex;gap:12px;align-items:center;justify-content:flex-end;}
-.link-update{color:var(--ok);background:none;border:0;padding:0;cursor:pointer;font-weight:700;text-decoration:none;font-size:.95rem;}
-.link-delete{color:var(--danger);background:none;border:0;padding:0;cursor:pointer;font-weight:700;text-decoration:none;font-size:.95rem;}
-.checkbox-col{width:36px;text-align:center;}
-.row-hover:hover td{background:rgba(255,255,255,0.01);}
+/* ensure toolbar buttons don't expand full width (matches classes.php) */
+.top-actions { display:flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap:nowrap; margin-bottom: 6px; }
+.top-actions .left-buttons, .top-actions .right-buttons { display:flex; gap:10px; align-items:center; flex: 0 0 auto; }
+.top-actions .left-buttons > .btn, .top-actions .left-buttons > a.btn { flex: 0 0 auto; width: auto !important; }
 
-/* department header row */
+/* Card similar to classes.php */
+.card{
+  width:100% !important;
+  max-width:none !important;
+  background: var(--card);
+  border-radius:12px;
+  padding:18px;
+  margin-top: 18px;
+  box-shadow:0 8px 28px rgba(2,6,23,0.6);
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  overflow:visible;
+  height:auto;
+  min-height:420px;
+}
+
+/* Table wrap: no inner scroll (page scrolls) */
+.table-wrap{
+  overflow:visible !important;
+  border-radius:8px;
+  margin-top:4px;
+  padding-right:0;
+  box-sizing:border-box;
+}
+
+/* Table layout */
+table {
+  width:100%;
+  border-collapse:collapse;
+  table-layout: auto;
+  min-width: 0;
+}
+th, td {
+  padding:12px;
+  border-top:1px solid rgba(255,255,255,0.03);
+  color:var(--text);
+  vertical-align:middle;
+  word-break:break-word;
+  white-space:normal;
+}
+th { color:var(--muted); text-align:left; font-weight:700; font-size:0.95rem; }
+
+/* make the checkbox column visible on left (user requested) */
+.checkbox-col { width:46px; text-align:center; }
+
+/* small code badge */
+.code-badge{ background:#071725; color:#7dd3fc; padding:6px 10px; border-radius:6px; font-weight:700; }
+
+/* action buttons inline */
+.actions-inline{ display:flex; gap:12px; align-items:center; justify-content:flex-end; }
+.link-update{ color: #06b76a; background:none; border:0; padding:0; cursor:pointer; font-weight:700; }
+.link-delete{ color: var(--accent-red-1); background:none; border:0; padding:0; cursor:pointer; font-weight:700; }
+
+/* highlight selected row */
+.row-selected td { background: rgba(37,99,235,0.06); box-shadow: inset 0 0 0 1px rgba(37,99,235,0.06); }
+
+/* department header look */
 .dept-row td {
-    background: rgba(255,255,255,0.02);
-    padding:14px 12px;
-    font-weight:800;
-    color: #cfe8ff;
-    border-top: 1px solid rgba(255,255,255,0.03);
+  background: rgba(255,255,255,0.01);
+  padding:14px 12px;
+  font-weight:800;
+  color: #cfe8ff;
+  border-top: 1px solid rgba(255,255,255,0.03);
 }
 .dept-sub { color: var(--muted); font-weight:600; margin-left:10px; font-size:0.95rem; }
 
-/* modal styles (like department popup) */
+/* subtle hover */
+.row-hover:hover td { background: rgba(255,255,255,0.01); }
+
+/* modal styling kept from previous design */
 .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;z-index:400;}
 .modal-backdrop.open{display:flex;backdrop-filter: blur(6px);background: rgba(2,6,23,0.5);}
-.delete-modal { width: 480px; max-width: 95%; background: linear-gradient(180deg, #0b1520 0%, #0f172a 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 19px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); color: var(--text); animation: fadeInScale 0.2s ease-out; }
 .modal {
   width: 560px; max-width: 94%;
   background: linear-gradient(180deg, #071026 0%, #081626 100%);
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 14px; box-shadow: 0 22px 64px rgba(2,6,23,0.85), inset 0 1px 0 rgba(255,255,255,0.02);
+  border-radius: 14px; box-shadow: 0 22px 64px rgba(2,6,23,0.85);
   color: var(--text); animation: fadeInScale 0.22s ease-out; overflow: hidden; display: flex; flex-direction: column;
 }
-.modal .modal-header { padding: 20px 26px; border-bottom: 1px solid rgba(255,255,255,0.03); display:flex; align-items:center; gap:12px; }
-.modal .modal-header h3 { margin:0; font-size:1.15rem; color:#f1f9ff; letter-spacing:0.3px; }
-.modal .modal-body { padding: 18px 26px; line-height:1.55; color: #dbeafe; font-size: 1rem; flex:1 1 auto; }
-.form-row { margin-bottom:12px; display:flex; flex-direction:column; gap:6px; }
-.modal label { color:#cbd5e1; font-weight:600; font-size:.95rem; }
-.modal input[type="text"], .modal select {
-  width:100%; padding:12px 14px; border-radius:10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); color: var(--text); font-size:0.97rem; transition: box-shadow .14s ease, border-color .14s ease, transform .08s ease;
-}
-.modal input::placeholder { color: rgba(230,238,248,0.35); font-weight:600; }
-.modal input:focus, .modal select:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56,189,248,0.06); }
-.modal select { -webkit-appearance: none; appearance: none; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.08); color: #e6eef8; padding-right: 40px; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; }
-.modal select option[disabled] { color: #98a0aa; font-weight: 600; }
-.modal select option { background: #071025; color: #e6eef8; padding: 10px 12px; font-weight: 600; }
-.modal .select-wrap { position: relative; display:block; }
-.modal .select-wrap::after{ content: "▾"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #9fd5ff; pointer-events: none; font-size: 12px; opacity: 0.95; }
-
-/* footer buttons */
-.modal .modal-footer { display:flex; justify-content:flex-end; gap:12px; padding:16px 26px; border-top: 1px solid rgba(255,255,255,0.02); background: linear-gradient(180deg, rgba(0,0,0,0.02), transparent); }
-.modal .btn-muted { padding:10px 18px; border-radius:10px; font-weight:700; }
-.modal .btn-primary { padding:10px 18px; border-radius:10px; font-weight:700; background: linear-gradient(90deg, var(--accent1), var(--accent2)); color:#fff; border:0; cursor:pointer; }
-
-/* delete modal specific */
-.delete-header { border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 12px; }
-.delete-header h3 { margin: 0; color: #fca5a5; font-size: 1.25rem; padding: 22px 26px; }
-.delete-body { padding: 22px 26px; }
-.confirm-input { width: 100%; background: #0a1220; color: #f8fafc; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; font-size: 0.95rem; }
-.delete-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; padding:18px 26px; border-top: 1px solid rgba(255,255,255,0.05); }
-
-/* small util */
-@keyframes fadeInScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-@keyframes shake { 10%,90%{transform:translateX(-2px);}20%,80%{transform:translateX(4px);} }
-.shake { animation: shake 0.4s ease; }
+.modal .modal-header { padding: 18px 22px; border-bottom: 1px solid rgba(255,255,255,0.03); display:flex; align-items:center; gap:12px; }
+.modal .modal-header h3 { margin:0; font-size:1.15rem; color:#f1f9ff; }
+.modal .modal-body { padding: 16px 22px; line-height:1.55; color: #dbeafe; font-size: 1rem; flex:1 1 auto; }
+.modal .modal-footer { display:flex; justify-content:flex-end; gap:12px; padding:14px 22px; border-top: 1px solid rgba(255,255,255,0.02); }
 
 /* toast */
 .toast{position:fixed;right:18px;bottom:18px;background:#0b1520;padding:12px 16px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);color:#e6eef8;z-index:600;display:none;}
@@ -257,10 +299,16 @@ th{color:var(--muted);text-align:left;font-weight:700;}
 .toast.success { background: #065f46; color: #ecfdf5; }
 .toast.error { background: #7f1d1d; color: #fee2e2; }
 
-/* responsive */
-@media (max-width:560px) {
-  .modal { width: 96%; }
-  .modal .modal-header, .modal .modal-body, .modal .modal-footer { padding-left:16px; padding-right:16px; }
+/* small util */
+@keyframes fadeInScale { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+@keyframes shake { 10%,90%{transform:translateX(-2px);}20%,80%{transform:translateX(4px);} }
+.shake { animation: shake 0.4s ease; }
+
+/* responsive tweaks */
+@media (max-width:740px) {
+  .center-box { width: calc(100% - 28px); padding:16px; }
+  .search-input { min-width:120px; }
+  .checkbox-col { width:36px; }
 }
 </style>
 </head>
@@ -278,19 +326,21 @@ th{color:var(--muted);text-align:left;font-weight:700;}
       <?php if ($flash): ?><div id="pageFlash" class="toast show"><?= e($flash) ?></div><?php endif; ?>
 
       <div class="admin-controls">
-        <div class="left-controls">
-<form id="searchForm" method="get" style="display:flex;gap:8px;align-items:center;">
-  <input name="q" class="search-input" placeholder="Search code or name..." value="<?= e($q) ?>">
-  <select name="per" onchange="this.form.submit()" class="search-input">
-    <?php foreach([5,10,25,50] as $p): ?>
-      <option value="<?= $p ?>" <?= $per == $p ? 'selected' : '' ?>><?= $p ?>/page</option>
-    <?php endforeach; ?>
-  </select>
-  <div class="search-buttons">
-    <button type="submit" class="btn-muted">Search</button>
-    <a href="courses.php" class="btn-muted">Clear</a>
-  </div>
-</form>
+        <form id="searchForm" method="get" style="display:flex;gap:8px;align-items:center;">
+          <input name="q" class="search-input" placeholder="Search code or name..." value="<?= e($q) ?>">
+          <select name="per" onchange="this.form.submit()" class="search-input">
+            <?php foreach([5,10,25,50] as $p): ?>
+              <option value="<?= $p ?>" <?= $per == $p ? 'selected' : '' ?>><?= $p ?>/page</option>
+            <?php endforeach; ?>
+          </select>
+          <div class="search-buttons">
+            <button type="submit" class="btn-muted">Search</button>
+            <a href="courses.php" class="btn-muted">Clear</a>
+          </div>
+        </form>
+
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+          <!-- extra controls if needed -->
         </div>
       </div>
 
@@ -298,14 +348,14 @@ th{color:var(--muted);text-align:left;font-weight:700;}
       <div class="top-actions" aria-label="Actions">
         <div class="left-buttons">
           <button id="openAddBtn" class="add-btn">＋ Add Course</button>
-          <a class="btn" href="api/courses.php?export=1">Export All</a>
+          <a class="btn btn-export" href="api/courses.php?export=1">Export All</a>
           <button id="bulkDeleteBtn" class="btn-danger">Delete Selected</button>
         </div>
 
         <div class="right-buttons">
           <?php if ($show_deleted): ?>
             <a class="btn toggle-btn active-toggle" href="courses.php">🟢 Show Active</a>
-            <span class="toggle-label">Viewing deleted (<?= (int)$deletedCount ?>)</span>
+            <span class="toggle-label" style="color:var(--muted);margin-left:8px">Viewing deleted (<?= (int)$deletedCount ?>)</span>
           <?php else: ?>
             <a class="btn toggle-btn" href="courses.php?show_deleted=1">🔴 Show Deleted <?= $deletedCount ? "({$deletedCount})" : '' ?></a>
           <?php endif; ?>
@@ -323,11 +373,11 @@ th{color:var(--muted);text-align:left;font-weight:700;}
           <table>
             <thead>
               <tr>
-                <th class="checkbox-col"><input id="chkAll" type="checkbox"></th>
-                <th style="width:120px"><a href="<?= e(build_sort_link('code')) ?>">Code <?= e(sort_arrow('code')) ?></a></th>
-                <th><a href="<?= e(build_sort_link('name')) ?>">Name <?= e(sort_arrow('name')) ?></a></th>
+                <th class="checkbox-col"><input id="chkAll" type="checkbox" aria-label="Select all"></th>
+                <th style="width:120px"><a href="<?= e(build_sort_link('code')) ?>" style="color:inherit;text-decoration:none;">Code <?= e(sort_arrow('code')) ?></a></th>
+                <th><a href="<?= e(build_sort_link('name')) ?>" style="color:inherit;text-decoration:none;">Name <?= e(sort_arrow('name')) ?></a></th>
                 <th style="min-width:200px">Department</th>
-                <th style="width:80px;text-align:right"><a href="<?= e(build_sort_link('students')) ?>">Students <?= e(sort_arrow('students')) ?></a></th>
+                <th style="width:80px;text-align:right"><a href="<?= e(build_sort_link('students')) ?>" style="color:inherit;text-decoration:none;">Students <?= e(sort_arrow('students')) ?></a></th>
                 <th style="width:160px">Action</th>
               </tr>
             </thead>
@@ -344,20 +394,23 @@ th{color:var(--muted);text-align:left;font-weight:700;}
                   </tr>
 
                   <?php foreach ($g['items'] as $r): $isDeleted = !empty($r['deleted_at']); ?>
-                    <tr class="row-hover">
-                      <td class="checkbox-col"><input class="row-chk" type="checkbox" value="<?= e($r['CourseID']) ?>" <?= $isDeleted ? 'disabled' : '' ?>></td>
+                    <tr class="row-hover" data-id="<?= e($r['CourseID']) ?>">
+                      <td class="checkbox-col"><input class="row-chk" type="checkbox" value="<?= e($r['CourseID']) ?>" <?= $isDeleted ? 'disabled' : '' ?> aria-label="Select row"></td>
                       <td><span class="code-badge"><?= e($r['Course_Code'] ?? '-') ?></span></td>
-                      <td><?= e($r['Course_Name']) ?><?php if ($isDeleted): ?><div style="color:var(--muted);font-size:.95rem;margin-top:6px;">Deleted at <?= e($r['deleted_at']) ?></div><?php endif; ?></td>
+                      <td>
+                        <?= e($r['Course_Name']) ?>
+                        <?php if ($isDeleted): ?><div style="color:var(--muted);font-size:.95rem;margin-top:6px;">Deleted at <?= e($r['deleted_at']) ?></div><?php endif; ?>
+                      </td>
                       <td class="dept-col" data-dept-id="<?= e($r['DepartmentID'] ?? '') ?>" data-dept-code="<?= e($r['Dept_Code'] ?? '') ?>" data-dept-name="<?= e($r['Dept_Name'] ?? '') ?>"><?= e($r['Dept_Name'] ?? '-') ?></td>
                       <td style="text-align:right"><?= e((int)$r['students']) ?></td>
                       <td>
                         <div class="actions-inline">
                           <?php if (!$isDeleted): ?>
-                            <button class="link-update" data-id="<?= e($r['CourseID']) ?>">Update</button>
+                            <button type="button" class="link-update" data-id="<?= e($r['CourseID']) ?>">Update</button>
                           <?php else: ?>
-                            <button class="btn-muted" data-undo-id="<?= e($r['CourseID']) ?>">Undo</button>
+                            <button type="button" class="btn-muted" data-undo-id="<?= e($r['CourseID']) ?>">Undo</button>
                           <?php endif; ?>
-                          <button class="link-delete" data-id="<?= e($r['CourseID']) ?>">Delete</button>
+                          <button type="button" class="link-delete" data-id="<?= e($r['CourseID']) ?>">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -395,7 +448,7 @@ th{color:var(--muted);text-align:left;font-weight:700;}
   </div>
 </main>
 
-<!-- Add/Edit Modal (styled like department) -->
+<!-- Add/Edit Modal (styled like classes) -->
 <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-header"><h3 id="modalTitle">Add Course</h3></div>
@@ -407,18 +460,18 @@ th{color:var(--muted);text-align:left;font-weight:700;}
 
       <div class="form-row">
         <label for="modal_code">Course Code</label>
-        <input id="modal_code" name="course_code" type="text" required placeholder="e.g. CID, MED, EED">
+        <input id="modal_code" name="course_code" type="text" required placeholder="e.g. CID, MED, EED" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--text);">
       </div>
 
       <div class="form-row">
         <label for="modal_name">Course Name</label>
-        <input id="modal_name" name="course_name" type="text" required placeholder="e.g. COMPUTER & INFORMATION">
+        <input id="modal_name" name="course_name" type="text" required placeholder="e.g. COMPUTER & INFORMATION" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--text);">
       </div>
 
       <div class="form-row">
         <label for="modal_dept">Department <span style="color:#f87171;font-weight:700;">(required)</span></label>
         <div class="select-wrap">
-          <select id="modal_dept" name="department_id" required>
+          <select id="modal_dept" name="department_id" required style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--text);">
             <option value="" disabled selected>-- Select department --</option>
             <?php foreach ($departments as $d): ?>
               <option value="<?= e($d['DepartmentID']) ?>"><?= e($d['Dept_Code'] ? "{$d['Dept_Code']} — {$d['Dept_Name']}" : $d['Dept_Name']) ?></option>
@@ -429,7 +482,7 @@ th{color:var(--muted);text-align:left;font-weight:700;}
 
       <div class="modal-footer">
         <button type="button" id="modalCancel" class="btn-muted">Cancel</button>
-        <button id="modalSubmit" class="btn-primary" type="submit">Save</button>
+        <button id="modalSubmit" class="btn" type="submit" style="background:linear-gradient(90deg,var(--accent-blue-1),var(--accent-blue-2));color:#fff;">Save</button>
       </div>
     </form>
   </div>
@@ -437,19 +490,19 @@ th{color:var(--muted);text-align:left;font-weight:700;}
 
 <!-- DELETE CONFIRMATION MODAL -->
 <div id="deleteBackdrop" class="modal-backdrop" aria-hidden="true">
-  <div class="modal delete-modal" role="dialog">
-    <div class="delete-header"><h3>⚠️ Confirm Delete</h3></div>
-    <div class="delete-body">
+  <div class="modal delete-modal" role="dialog" aria-modal="true">
+    <div class="modal-header"><h3>⚠️ Confirm Delete</h3></div>
+    <div class="modal-body">
       <p>You are about to delete <strong id="deleteName"></strong>.</p>
-      <p class="warning-text">This action will <b>soft-delete</b> the course. You can restore it later using the <em>Undo</em> option.</p>
-
+      <p style="background: rgba(239,68,68,0.06); border-left:3px solid var(--accent-red-1); padding:8px; border-radius:6px; color:#f87171;">
+        This will soft-delete the course (if enabled).
+      </p>
       <label class="confirm-label" for="confirmDelete">Please type <code>DELETE</code> below to confirm:</label>
-      <input id="confirmDelete" type="text" placeholder="Type DELETE here" class="confirm-input">
+      <input id="confirmDelete" type="text" placeholder="Type DELETE here" style="width:100%;padding:10px;margin-top:8px;border-radius:8px;background:#071025;border:1px solid rgba(255,255,255,0.04);color:var(--text);">
     </div>
-
-    <div class="delete-footer">
-      <button id="deleteCancel" class="btn-cancel">Cancel</button>
-      <button id="deleteConfirm" class="btn-delete" disabled>Delete permanently</button>
+    <div class="modal-footer">
+      <button id="deleteCancel" class="btn-muted">Cancel</button>
+      <button id="deleteConfirm" class="btn-danger" disabled>Delete permanently</button>
     </div>
   </div>
 </div>
@@ -467,7 +520,7 @@ function postJSON(url, data){
         else fd.append(k, data[k]);
     }
     fd.append('csrf_token', csrfToken);
-    return fetch(url, { method:'POST', body: fd }).then(r => r.json());
+    return fetch(url, { method:'POST', body: fd, credentials:'same-origin' }).then(r => r.json());
 }
 function showToast(msg, timeout=2200, cls='') {
     const s = document.getElementById('toast'); s.textContent = msg; s.classList.add('show'); if (cls) s.classList.add(cls);
@@ -476,7 +529,40 @@ function showToast(msg, timeout=2200, cls='') {
 
 // elements
 const chkAll = document.getElementById('chkAll');
-if (chkAll) chkAll.addEventListener('change', ()=> document.querySelectorAll('.row-chk').forEach(c=>{ if(!c.disabled) c.checked = chkAll.checked; }));
+if (chkAll) chkAll.addEventListener('change', ()=> {
+  const checked = chkAll.checked;
+  document.querySelectorAll('.row-chk').forEach(c=>{
+    if (!c.disabled) {
+      c.checked = checked;
+      toggleRowSelected(c);
+    }
+  });
+});
+
+// helper to toggle row style when checkbox changes
+function toggleRowSelected(checkbox) {
+  const tr = checkbox.closest('tr');
+  if (!tr) return;
+  if (checkbox.checked) tr.classList.add('row-selected');
+  else tr.classList.remove('row-selected');
+}
+// wire up row checkboxes to reflect selected styling
+document.querySelectorAll('.row-chk').forEach(cb=>{
+  cb.addEventListener('change', ()=> {
+    toggleRowSelected(cb);
+    // keep master checkbox in sync
+    const all = Array.from(document.querySelectorAll('.row-chk')).filter(x => !x.disabled);
+    if (all.length) {
+      const allChecked = all.every(x => x.checked);
+      const anyChecked = all.some(x => x.checked);
+      chkAll.indeterminate = !allChecked && anyChecked;
+      chkAll.checked = allChecked;
+    } else {
+      chkAll.checked = false;
+      chkAll.indeterminate = false;
+    }
+  });
+});
 
 // modal elements
 const modalBackdrop = document.getElementById('modalBackdrop');
@@ -503,36 +589,51 @@ const openAddBtn = document.getElementById('openAddBtn');
 if (openAddBtn) openAddBtn.addEventListener('click', ()=> {
     modalAction.value = 'add';
     modalId.value = 0;
-    modalCode.value = '';
-    modalName.value = '';
-    modalDept.value = '';
+    if (modalCode) modalCode.value = '';
+    if (modalName) modalName.value = '';
+    if (modalDept) modalDept.value = '';
     modalTitle.textContent = 'Add Course';
     modalSubmit.textContent = 'Save';
     modalBackdrop.classList.add('open');
-    modalCode.focus();
+    if (modalCode) setTimeout(()=>modalCode.focus(),120);
 });
 
-// edit buttons
-document.querySelectorAll('.link-update').forEach(btn=>{
-    btn.addEventListener('click', ()=> {
-        const id = btn.dataset.id; const d = courseMap[id] || {};
+// edit & delete (delegation)
+document.addEventListener('click', function(e) {
+    const up = e.target.closest && e.target.closest('.link-update');
+    if (up) {
+        const id = up.dataset.id; const d = courseMap[id] || {};
         modalAction.value = 'edit';
         modalId.value = id;
-        modalCode.value = d.Course_Code || '';
-        modalName.value = d.Course_Name || '';
-        modalDept.value = d.DepartmentID || '';
+        if (modalCode) modalCode.value = d.Course_Code || '';
+        if (modalName) modalName.value = d.Course_Name || '';
+        if (modalDept) modalDept.value = d.DepartmentID || '';
         modalTitle.textContent = 'Update Course';
         modalSubmit.textContent = 'Update';
         modalBackdrop.classList.add('open');
-        modalCode.focus();
-    });
+        if (modalCode) setTimeout(()=>modalCode.focus(),120);
+        e.preventDefault();
+        return;
+    }
+    const del = e.target.closest && e.target.closest('.link-delete');
+    if (del) {
+        const id = del.dataset.id; const d = courseMap[id] || {};
+        deleteName.textContent = d.Course_Name || ('#'+id);
+        confirmDelete.value = '';
+        deleteConfirm.disabled = true;
+        deleteConfirm.dataset.id = id;
+        deleteBackdrop.classList.add('open');
+        setTimeout(()=> confirmDelete.focus(),120);
+        e.preventDefault();
+        return;
+    }
 });
 
 // cancel modal
-modalCancel.addEventListener('click', ()=> modalBackdrop.classList.remove('open'));
+if (modalCancel) modalCancel.addEventListener('click', ()=> modalBackdrop.classList.remove('open'));
 
 // submit add/edit
-modalForm.addEventListener('submit', function(e){
+if (modalForm) modalForm.addEventListener('submit', function(e){
     e.preventDefault();
     const act = modalAction.value;
     const id = modalId.value;
@@ -559,48 +660,41 @@ modalForm.addEventListener('submit', function(e){
     }).catch(()=>{ btn.disabled = false; btn.textContent = orig; showToast('Network error',2200,'error'); });
 });
 
-// delete flow
-document.querySelectorAll('.link-delete').forEach(btn=>{
-    btn.addEventListener('click', ()=> {
-        const id = btn.dataset.id; const d = courseMap[id] || {};
-        deleteName.textContent = d.Course_Name || ('#'+id);
-        confirmDelete.value = '';
-        deleteConfirm.disabled = true;
-        deleteConfirm.dataset.id = id;
-        deleteBackdrop.classList.add('open');
-        confirmDelete.focus();
-    });
-});
-confirmDelete.addEventListener('input', ()=> {
-    deleteConfirm.disabled = (confirmDelete.value !== 'DELETE');
-    if (confirmDelete.value.length >= 6 && confirmDelete.value !== 'DELETE') {
-        confirmDelete.classList.add('shake');
-        setTimeout(()=> confirmDelete.classList.remove('shake'), 380);
-    }
-});
-deleteCancel.addEventListener('click', ()=> deleteBackdrop.classList.remove('open'));
-deleteConfirm.addEventListener('click', ()=> {
+// delete flow (confirm input)
+if (confirmDelete) {
+  confirmDelete.addEventListener('input', ()=> {
+      deleteConfirm.disabled = (confirmDelete.value !== 'DELETE');
+      if (confirmDelete.value.length >= 6 && confirmDelete.value !== 'DELETE') {
+          deleteConfirm.classList.add('shake');
+          setTimeout(()=> deleteConfirm.classList.remove('shake'), 380);
+      }
+  });
+}
+if (deleteCancel) deleteCancel.addEventListener('click', ()=> deleteBackdrop.classList.remove('open'));
+if (deleteConfirm) deleteConfirm.addEventListener('click', ()=> {
     const id = deleteConfirm.dataset.id;
-    const btn = deleteConfirm; btn.disabled = true; btn.textContent = 'Deleting...';
+    const btn = deleteConfirm; btn.disabled = true; const orig = btn.textContent || 'Deleting...'; btn.textContent = 'Deleting...';
     postJSON('api/courses.php', { action: 'delete', id: id }).then(resp=>{
         if (resp && resp.ok) { deleteBackdrop.classList.remove('open'); showToast('Deleted', 1200, 'success'); setTimeout(()=>location.reload(),600); }
-        else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error'); btn.disabled = false; btn.textContent = 'Delete permanently'; }
-    }).catch(()=>{ showToast('Network error',2500,'error'); btn.disabled = false; btn.textContent = 'Delete permanently'; });
+        else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error'); btn.disabled = false; btn.textContent = orig; }
+    }).catch(()=>{ showToast('Network error',2500,'error'); btn.disabled = false; btn.textContent = orig; });
 });
 
 // undo
-document.querySelectorAll('[data-undo-id]').forEach(btn=>{
-    btn.addEventListener('click', ()=> {
-        const id = btn.dataset.undoId;
+document.addEventListener('click', function(e){
+    const u = e.target.closest && e.target.closest('[data-undo-id]');
+    if (u) {
+        const id = u.dataset.undoId;
         postJSON('api/courses.php', { action: 'undo', id: id }).then(resp=>{
             if (resp && resp.ok) { showToast('Restored', 1200, 'success'); setTimeout(()=>location.reload(),600); }
             else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
         }).catch(()=>showToast('Network error',2500,'error'));
-    });
+    }
 });
 
 // bulk delete
-document.getElementById('bulkDeleteBtn').addEventListener('click', ()=> {
+const bulkBtn = document.getElementById('bulkDeleteBtn');
+if (bulkBtn) bulkBtn.addEventListener('click', ()=> {
     const selected = Array.from(document.querySelectorAll('.row-chk')).filter(c=>c.checked).map(c=>c.value);
     if (!selected.length) return alert('Select rows first');
     if (!confirm('Delete selected courses?')) return;
@@ -610,7 +704,7 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', ()=> {
     }).catch(()=>showToast('Network error',2500,'error'));
 });
 
-// close modals on backdrop click
+// close modals on backdrop click & Escape
 document.querySelectorAll('.modal-backdrop').forEach(b => b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); }));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.open').forEach(b=>b.classList.remove('open')); });
 </script>

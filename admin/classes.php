@@ -25,7 +25,6 @@ try { $courseCols = $pdo->query("SHOW COLUMNS FROM `course`")->fetchAll(PDO::FET
 try { $studentCols= $pdo->query("SHOW COLUMNS FROM `student`")->fetchAll(PDO::FETCH_COLUMN); } catch(Exception $e){ $studentCols = []; if(!isset($errMsg)) $errMsg = $e->getMessage(); }
 try { $deptCols   = $pdo->query("SHOW COLUMNS FROM `department`")->fetchAll(PDO::FETCH_COLUMN); } catch(Exception $e){ $deptCols = []; if(!isset($errMsg)) $errMsg = $e->getMessage(); }
 
-/* sensible detection */
 $class_id_col   = pick_col($classCols,   ['ClassID','class_id','id','ID'], 'ClassID');
 $class_code_col = pick_col($classCols,   ['Class_Code','ClassCode','class_code','Code','code'], null);
 $class_name_col = pick_col($classCols,   ['Class_Name','ClassName','class_name','Name','name'], null);
@@ -209,23 +208,175 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
   --card:#07111a;
   --muted:#9aa8bd;
   --text:#e8f6ff;
-  --accent-purple-1:#7c3aed;
-  --accent-purple-2:#6d28d9;
   --accent-blue-1:#2563eb;
   --accent-blue-2:#1d4ed8;
   --accent-red-1:#ef4444;
   --accent-red-2:#dc2626;
+  --accent-purple-1:#7c3aed;
+  --accent-purple-2:#6d28d9;
   --select-bg: rgba(255,255,255,0.02);
   --select-border: rgba(255,255,255,0.04);
   --select-contrast: #dff6ff;
-  --placeholder: #94a3b8;
 }
 
 /* page */
-body { background: var(--bg); color: var(--text); }
-.center-box{max-width:1100px;margin:0 auto;padding:18px;}
+body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
-/* Filters row */
+/* Use a full-width center container so card can occupy wide layout */
+.center-box{
+  max-width: none !important;
+  width: calc(100% - 48px);
+  margin: auto;
+  padding: 22px 24px;
+  box-sizing: border-box;
+}
+
+/* Card: remove fixed height and let it grow naturally.
+   This prevents an inner scrollbar on the table area.
+*/
+.card{
+  width:100% !important;
+  max-width:none !important;
+  background: var(--card);
+  border-radius:12px;
+  padding:18px;
+  margin-top: 40px;
+  box-shadow:0 8px 28px rgba(2,6,23,0.6);
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  overflow:visible;   /* allow content to expand, no inner clipping */
+  height:auto;        /* allow card to grow with content (no fixed vh) */
+  min-height:420px;
+}
+
+/* header remains fixed; table area can expand */
+.card > div:first-child { flex: 0 0 auto; }
+.card > .table-wrap { flex: 1 1 auto; }
+
+/* Table container: no internal scrollbars; page will scroll */
+.table-wrap{
+  overflow:visible !important;
+  border-radius:8px;
+  margin-top:4px;
+  padding-right:0;
+  box-sizing:border-box;
+}
+
+/* Table layout: allow Course column to expand while other columns are fixed */
+.table-wrap table {
+  width:100%;
+  border-collapse:collapse;
+  table-layout: auto;
+  min-width: 0;
+}
+
+/* cells */
+th, td {
+  padding:12px;
+  border-top:1px solid rgba(255,255,255,0.03);
+  color:var(--text);
+  vertical-align:middle;
+  word-break:break-word;
+  white-space:normal;
+}
+th {
+  color:var(--muted);
+  text-align:left;
+  font-weight:700;
+  font-size:0.95rem;
+}
+
+/* Show the checkbox column on the far left (was previously hidden) */
+.checkbox-col {
+  display: table-cell !important;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  text-align: center;
+  vertical-align: middle;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* Style the per-row checkbox to look nicer (bigger clickable area) */
+.row-chk {
+  width:18px;
+  height:18px;
+  cursor:pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 2px solid rgba(255,255,255,0.08);
+  background: transparent;
+  border-radius: 5px;
+  display:inline-block;
+  position: relative;
+}
+.row-chk:focus { outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+.row-chk:checked {
+  background: linear-gradient(180deg, var(--accent-purple-1), var(--accent-purple-2));
+  border-color: rgba(255,255,255,0.08);
+}
+.row-chk:checked::after {
+  content: "✓";
+  position: absolute;
+  color: white;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-58%);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* ------ SELECTED ROW STYLES (added, keeps overall design) ------ */
+/* highlight selected row when its checkbox is checked */
+tr.selected-row td {
+  background: linear-gradient(180deg, rgba(124,58,237,0.06), rgba(124,58,237,0.02));
+  box-shadow: inset 0 0 0 1px rgba(124,58,237,0.14);
+  transition: background .18s ease, box-shadow .18s ease;
+}
+
+/* Column sizing:
+   - Class column fixed (compact)
+   - Course / Department: flexible (auto)
+   - Students: fixed, right-aligned
+   - Action: fixed, right-aligned
+*/
+.table-wrap th:nth-child(2),
+.table-wrap td:nth-child(2) {
+  width: 220px;
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.table-wrap th:nth-child(3),
+.table-wrap td:nth-child(3) {
+  /* flexible: no width so it uses remaining space */
+}
+
+.table-wrap th:nth-child(4),
+.table-wrap td:nth-child(4) {
+  width: 110px;
+  min-width: 90px;
+  text-align: right;
+}
+
+.table-wrap th:nth-child(5),
+.table-wrap td:nth-child(5) {
+  width: 160px;
+  min-width: 140px;
+  text-align: right;
+}
+
+/* keep action buttons from wrapping and forcing width */
+.actions-inline { display:flex; gap:12px; align-items:center; justify-content:flex-end; }
+.link-update, .link-delete, .btn-muted { white-space:nowrap; }
+
+/* subtle hover */
+.row-hover:hover td { background: rgba(255,255,255,0.01); }
+
+/* filters + buttons */
 .filters-row{
   display:flex;
   gap:8px;
@@ -245,14 +396,56 @@ body { background: var(--bg); color: var(--text); }
   -webkit-appearance:none;
   -moz-appearance:none;
   appearance:none;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.01);
 }
 .search-box { flex:0 0 260px; min-width:140px; }
 .small { flex:0 0 48px; max-width:48px; text-align:center; padding-left:6px; padding-right:6px; }
 .dept { flex:1 1 220px; min-width:140px; }
 .sem { flex:0 0 92px; min-width:80px; max-width:96px; text-align:center; }
 
-/* Buttons */
+/* ====== Fix: keep top action buttons inline and aligned ====== */
+.top-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between; /* left buttons left, right-buttons right */
+  flex-wrap: nowrap;
+  margin-bottom: 6px; /* small gap before card */
+}
+
+/* left and right groups */
+.left-buttons, .right-buttons {
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:nowrap;
+}
+
+/* ensure buttons don't expand to fill width */
+.top-actions .btn {
+  flex: 0 0 auto;
+  width: auto !important;
+  min-width: 120px;
+  white-space: nowrap;
+  border-radius: 10px;
+}
+
+/* special min-widths to keep consistent */
+.top-actions .add-btn { min-width:140px; }
+.top-actions .btn-export { min-width:130px; }
+.top-actions .btn-danger { min-width:140px; }
+
+/* keep the toggle on the right neat */
+.right-buttons .toggle-btn { min-width:140px; }
+
+/* small screen: allow wrapping but keep buttons reasonable */
+@media (max-width: 740px) {
+  .filters-row { flex-wrap: wrap; gap:10px; }
+  .top-actions { flex-wrap: wrap; gap:8px; }
+  .top-actions .btn { min-width: calc(50% - 12px); }
+  .right-buttons .toggle-btn { min-width: 120px; }
+}
+
+/* Buttons base */
 .btn {
   display:inline-flex;
   align-items:center;
@@ -269,91 +462,24 @@ body { background: var(--bg); color: var(--text); }
   font-weight:500;
   font-size:1rem;
   box-shadow: 0 10px 30px rgba(2,6,23,0.6);
-  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
 }
-.add-btn{
-  background: linear-gradient(90deg,#7c3aed,#6d28d9);
-  box-shadow: 0 14px 40px rgba(109,40,217,0.12);
-  min-width:130px;
-  height:44px;
-  border: 1px solid rgba(255,255,255,0.04);
-}
-.btn-export{
-  background: linear-gradient(90deg,#2563eb,#1d4ed8);
-  box-shadow: 0 12px 34px rgba(37,99,235,0.10);
-  min-width:130px;
-  height:44px;
-  border: 1px solid rgba(255,255,255,0.04);
-}
-.btn-danger{
-  background: linear-gradient(90deg,#ef4444,#dc2626);
-  box-shadow: 0 12px 34px rgba(220,38,38,0.10);
-  min-width:130px;
-  height:44px;
-  border: 1px solid rgba(255,255,255,0.04);
-}
-.btn-muted{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  padding:0 12px;
-  min-width:80px;
-  height:40px;
-  border-radius:10px;
-  background:#374151;
-  color:white;
-  border:1px solid rgba(255,255,255,0.03);
-  cursor:pointer;
-  font-weight:500;
-  font-size:0.95rem;
-}
+.add-btn{ background: linear-gradient(90deg,var(--accent-purple-1),var(--accent-purple-2)); min-width:130px; height:44px; border:1px solid rgba(255,255,255,0.04); }
+.btn-export{ background: linear-gradient(90deg,var(--accent-blue-1),var(--accent-blue-2)); min-width:130px; height:44px; border:1px solid rgba(255,255,255,0.04); }
+.btn-danger{ background: linear-gradient(90deg,var(--accent-red-1),var(--accent-red-2)); min-width:130px; height:44px; border:1px solid rgba(255,255,255,0.04); }
+.btn-muted{ padding:0 12px; min-width:80px; height:40px; border-radius:10px; background:#374151; color:white; border:1px solid rgba(255,255,255,0.03); }
 
-/* top actions */
-.top-actions { display:flex; align-items:center; gap:10px; padding:8px 0; margin-bottom:12px; justify-content:flex-start; }
-.left-buttons { display:flex; gap:10px; align-items:center; }
-.right-buttons { margin-left:auto; display:flex; gap:10px; align-items:center; }
-
-/* Table */
-.table-wrap{overflow:auto;border-radius:8px;margin-top:8px;}
-table{width:100%;border-collapse:collapse;margin-top:12px;}
-th,td{padding:12px;border-top:1px solid rgba(255,255,255,0.03);color:var(--text);vertical-align:middle;}
-th{color:var(--muted);text-align:left;font-weight:700;font-size:0.95rem;}
-.actions-inline{display:flex;gap:12px;align-items:center;justify-content:flex-end;}
-.link-update{color:#06b76a;background:none;border:0;padding:0;cursor:pointer;font-weight:600;text-decoration:none;font-size:.95rem;}
-.link-delete{color:var(--accent-red-1);background:none;border:0;padding:0;cursor:pointer;font-weight:600;text-decoration:none;font-size:.95rem;}
-.checkbox-col{width:44px;text-align:center;}
-.row-hover:hover td{background:rgba(255,255,255,0.01);}
-.card{background:#0b1520;border-radius:12px;padding:16px;box-shadow:0 8px 28px rgba(2,6,23,0.6);}
-
-/* Modal content dark (overrides bootstrap defaults) */
+/* modal */
 .modal-content {
   background: linear-gradient(180deg, #071026 0%, #081626 100%) !important;
   border: 1px solid rgba(255,255,255,0.06) !important;
   color: var(--text) !important;
 }
-.modal-header, .modal-footer { border-color: rgba(255,255,255,0.03) !important; }
-.form-control, .form-select { background: rgba(255,255,255,0.02); color: var(--text); border: 1px solid rgba(255,255,255,0.04); }
-
-/* Nice course select / option styling - improve contrast and look */
-.form-select {
-  padding: 12px 14px;
-  border-radius: 10px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-}
-.form-select option {
-  color: #e6eef8;
-  background: #071026;
-}
-
-/* loading / error placeholders for the course select */
-.form-select.loading { opacity: 0.9; }
-.form-select.error { border-color: rgba(239,68,68,0.6); box-shadow: 0 6px 18px rgba(239,68,68,0.06) inset; }
+.form-control, .form-select { background: rgba(255,255,255,0.02); color: var(--text); border:1px solid rgba(255,255,255,0.04); }
 
 /* toast */
-.toast{position:fixed;right:20px;bottom:20px;background:#0f1724;border-radius:8px;padding:10px 14px;color:var(--select-contrast);box-shadow:0 12px 40px rgba(2,6,23,0.65);opacity:0;transition:opacity .18s ease;z-index:1200;}
-.toast.show{opacity:1;}
+#toast { position: fixed; right: 20px; bottom: 20px; background: rgba(0,0,0,0.6); color: #fff; padding: 10px 14px; border-radius:8px; display:none; z-index:1200; }
+#toast.show { display:block; animation: fadeInOut 2s ease forwards; }
+@keyframes fadeInOut { 0%{opacity:0;transform:translateY(6px)}10%{opacity:1;transform:translateY(0)}90%{opacity:1}100%{opacity:0;transform:translateY(6px)} }
 </style>
 </head>
 <body>
@@ -428,10 +554,19 @@ th{color:var(--muted);text-align:left;font-weight:700;font-size:0.95rem;}
           <table>
             <thead>
               <tr>
+                <!-- checkbox column visible now -->
                 <th class="checkbox-col"><input id="chkAll" type="checkbox"></th>
+
+                <!-- 1) Class -->
                 <th>Class</th>
+
+                <!-- 2) Course / Department (flexible) -->
                 <th>Course / Department</th>
+
+                <!-- 3) Students -->
                 <th style="width:80px;text-align:right">Students</th>
+
+                <!-- 4) Action -->
                 <th style="width:160px">Action</th>
               </tr>
             </thead>
@@ -439,25 +574,36 @@ th{color:var(--muted);text-align:left;font-weight:700;font-size:0.95rem;}
               <?php if (empty($rows)): ?>
                 <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px;">No classes found.</td></tr>
               <?php else: foreach ($rows as $r): $isDeleted = !empty($r['deleted_at']); ?>
-                <tr class="row-hover">
-                  <td class="checkbox-col"><input class="row-chk" type="checkbox" value="<?= e($r['ClassID']) ?>" <?= $isDeleted ? 'disabled' : '' ?>></td>
+                <tr class="row-hover" data-id="<?= e($r['ClassID']) ?>">
+                  <!-- checkbox (visible) -->
+                  <td class="checkbox-col">
+                    <input class="row-chk" type="checkbox" value="<?= e($r['ClassID']) ?>" <?= $isDeleted ? 'disabled' : '' ?> aria-label="Select <?= e($r['Class_Name'] ?? 'class') ?>">
+                  </td>
+
+                  <!-- Class -->
                   <td>
                     <div style="font-weight:700;font-size:0.98rem"><?= e($r['Class_Name'] ?? '-') ?></div>
                     <div style="color:var(--muted);font-size:.9rem;margin-top:6px;">Sem <?= e($r['Semester'] ?? '-') ?></div>
                   </td>
+
+                  <!-- Course / Department (flexible) -->
                   <td>
                     <div style="font-weight:700"><?= e($r['Course_Code'] ? "{$r['Course_Code']} — {$r['Course_Name']}" : ($r['Course_Name'] ?? '-')) ?></div>
                     <div style="color:var(--muted);font-size:.85rem;margin-top:6px;"><?= e($r['Dept_Code'] ? "{$r['Dept_Code']} — {$r['Dept_Name']}" : ($r['Dept_Name'] ?? '-')) ?></div>
                   </td>
+
+                  <!-- Students -->
                   <td style="text-align:right"><?= e((int)$r['students']) ?></td>
+
+                  <!-- Action -->
                   <td style="text-align:right">
                     <div class="actions-inline">
                       <?php if (!$isDeleted): ?>
-                        <button class="link-update btn btn-link" data-id="<?= e($r['ClassID']) ?>" style="color:#06b76a">Update</button>
+                        <button type="button" class="link-update btn btn-link" data-id="<?= e($r['ClassID']) ?>" style="color:#06b76a">Update</button>
                       <?php else: ?>
-                        <button class="btn-muted" data-undo-id="<?= e($r['ClassID']) ?>">Undo</button>
+                        <button type="button" class="btn-muted" data-undo-id="<?= e($r['ClassID']) ?>">Undo</button>
                       <?php endif; ?>
-                      <button class="link-delete btn btn-link" data-id="<?= e($r['ClassID']) ?>" style="color:var(--accent-red-1)">Delete</button>
+                      <button type="button" class="link-delete btn btn-link" data-id="<?= e($r['ClassID']) ?>" style="color:var(--accent-red-1)">Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -578,7 +724,7 @@ th{color:var(--muted);text-align:left;font-weight:700;font-size:0.95rem;}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-const csrfToken = <?= json_encode($csrf) ?>;
+const csrfToken = <?= json_encode($csrf, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 const classMap = <?= json_encode($map, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
 
 /* small helpers */
@@ -592,11 +738,87 @@ function postJSON(url, data){
     return fetch(url, { method:'POST', body: fd, credentials:'same-origin' }).then(r => r.json());
 }
 function getJSON(url){ return fetch(url, { credentials:'same-origin' }).then(r => r.json()); }
-function showToast(msg, t=2200){ const s = document.getElementById('toast'); s.textContent = msg; s.classList.add('show'); setTimeout(()=> s.classList.remove('show'), t); }
+function showToast(msg, t=2200){
+    const s = document.getElementById('toast');
+    s.textContent = msg;
+    s.classList.add('show');
+    clearTimeout(s._hideTimer);
+    s._hideTimer = setTimeout(()=> s.classList.remove('show'), t);
+}
 
-/* helpers for checkbox select all */
+/* helpers for checkbox select all + row highlight + bulk delete enable */
 const chkAll = document.getElementById('chkAll');
-if (chkAll) chkAll.addEventListener('change', ()=> document.querySelectorAll('.row-chk').forEach(c=>{ if(!c.disabled) c.checked = chkAll.checked; }));
+const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+
+function getRowCheckboxes() {
+  return Array.from(document.querySelectorAll('.row-chk'));
+}
+function getEnabledRowCheckboxes() {
+  return getRowCheckboxes().filter(c => !c.disabled);
+}
+function getSelectedIds() {
+  return getRowCheckboxes().filter(c => c.checked && !c.disabled).map(c => c.value);
+}
+function updateRowHighlights() {
+  getRowCheckboxes().forEach(cb => {
+    const tr = cb.closest('tr');
+    if (!tr) return;
+    if (cb.checked && !cb.disabled) tr.classList.add('selected-row');
+    else tr.classList.remove('selected-row');
+  });
+}
+function updateBulkDeleteState() {
+  const any = getSelectedIds().length > 0;
+  if (bulkDeleteBtn) bulkDeleteBtn.disabled = !any;
+}
+
+/* initialize checkbox listeners */
+function initSelectionControls() {
+  // per-row listeners - attach change handlers
+  getRowCheckboxes().forEach(cb => {
+    cb.removeEventListener('change', rowCheckboxChangeHandler, false);
+    cb.addEventListener('change', rowCheckboxChangeHandler, false);
+  });
+
+  // chkAll toggles all enabled row checkboxes
+  if (chkAll) {
+    chkAll.removeEventListener('change', chkAllHandler, false);
+    chkAll.addEventListener('change', chkAllHandler, false);
+  }
+
+  // set initial states
+  const enabled = getEnabledRowCheckboxes();
+  if (chkAll) chkAll.checked = enabled.length ? enabled.every(c => c.checked) : false;
+  updateRowHighlights();
+  updateBulkDeleteState();
+}
+
+function rowCheckboxChangeHandler() {
+  const enabled = getEnabledRowCheckboxes();
+  if (chkAll) chkAll.checked = enabled.length ? enabled.every(c => c.checked) : false;
+  updateRowHighlights();
+  updateBulkDeleteState();
+}
+
+function chkAllHandler() {
+  getEnabledRowCheckboxes().forEach(c => c.checked = chkAll.checked);
+  updateRowHighlights();
+  updateBulkDeleteState();
+}
+
+/* Allow clicking a row to toggle its checkbox (but ignore clicks on action buttons/links) */
+document.addEventListener('click', function(e){
+  const tr = e.target.closest && e.target.closest('tr[data-id]');
+  if (!tr) return;
+  // if click on input/label/button/a inside row -> do nothing special
+  const ignore = e.target.closest('.actions-inline, button, a, input, select, label');
+  if (ignore) return;
+  // toggle the checkbox
+  const cb = tr.querySelector('.row-chk');
+  if (!cb || cb.disabled) return;
+  cb.checked = !cb.checked;
+  cb.dispatchEvent(new Event('change', { bubbles: true }));
+}, false);
 
 /* modal instances */
 const classModalEl = document.getElementById('classModal');
@@ -679,7 +901,7 @@ function loadCoursesForDepartment(deptId, selectedCourseId = '') {
 }
 
 /* When department in modal changes, load courses */
-modalDept.addEventListener('change', ()=> loadCoursesForDepartment(modalDept.value));
+if (modalDept) modalDept.addEventListener('change', ()=> loadCoursesForDepartment(modalDept.value));
 
 /* open edit: reuse map prepared on server */
 function openEditModal(id){
@@ -698,7 +920,7 @@ function openEditModal(id){
 }
 
 /* submit add/edit */
-modalForm.addEventListener('submit', function(e){
+if (modalForm) modalForm.addEventListener('submit', function(e){
     e.preventDefault();
     const act = modalAction.value;
     const id = modalId.value;
@@ -737,17 +959,24 @@ function openDeleteModal(id){
     setTimeout(()=> document.getElementById('confirmDelete').focus(), 120);
 }
 
-document.getElementById('confirmDelete').addEventListener('input', function(){
-    document.getElementById('deleteConfirm').disabled = (this.value !== 'DELETE');
-    if (this.value.length >= 6 && this.value !== 'DELETE') { this.classList.add('shake'); setTimeout(()=> this.classList.remove('shake'), 380); }
-});
-document.getElementById('deleteConfirm').addEventListener('click', function(){
-    const id = this.dataset.id; const btn = this; btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Deleting...';
-    postJSON('api/classes.php', { action: 'delete', id: id }).then(resp=>{
-        if (resp && resp.ok) { if (deleteModal) deleteModal.hide(); showToast('Deleted'); setTimeout(()=>location.reload(),600); }
-        else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown')); btn.disabled=false; btn.textContent=orig; }
-    }).catch(()=>{ showToast('Network error'); btn.disabled=false; btn.textContent=orig; });
-});
+const confirmDeleteInput = document.getElementById('confirmDelete');
+if (confirmDeleteInput) {
+  confirmDeleteInput.addEventListener('input', function(){
+      const delBtn = document.getElementById('deleteConfirm');
+      delBtn.disabled = (this.value !== 'DELETE');
+      if (this.value.length >= 6 && this.value !== 'DELETE') { this.classList.add('shake'); setTimeout(()=> this.classList.remove('shake'), 380); }
+  });
+}
+const deleteConfirmBtn = document.getElementById('deleteConfirm');
+if (deleteConfirmBtn) {
+  deleteConfirmBtn.addEventListener('click', function(){
+      const id = this.dataset.id; const btn = this; btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Deleting...';
+      postJSON('api/classes.php', { action: 'delete', id: id }).then(resp=>{
+          if (resp && resp.ok) { if (deleteModal) deleteModal.hide(); showToast('Deleted'); setTimeout(()=>location.reload(),600); }
+          else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown')); btn.disabled=false; btn.textContent=orig; }
+      }).catch(()=>{ showToast('Network error'); btn.disabled=false; btn.textContent=orig; });
+  });
+}
 
 /* undo */
 document.querySelectorAll('[data-undo-id]').forEach(btn=> {
@@ -761,18 +990,22 @@ document.querySelectorAll('[data-undo-id]').forEach(btn=> {
 });
 
 /* bulk delete */
-const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
-if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', ()=> {
-    const selected = Array.from(document.querySelectorAll('.row-chk')).filter(c=>c.checked).map(c=>c.value);
-    if (!selected.length) return alert('Select rows first');
-    if (!confirm('Delete selected classes?')) return;
-    postJSON('api/classes.php', { action: 'bulk_delete', ids: selected }).then(resp=>{
-        if (resp && resp.ok) { showToast('Deleted ' + (resp.count || selected.length)); setTimeout(()=>location.reload(),600); }
-        else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'));
-    }).catch(()=>showToast('Network error'));
-});
+if (bulkDeleteBtn) {
+  bulkDeleteBtn.addEventListener('click', ()=> {
+      const selected = Array.from(document.querySelectorAll('.row-chk')).filter(c=>c.checked && !c.disabled).map(c=>c.value);
+      if (!selected.length) { showToast('Select rows first'); return; }
+      if (!confirm('Delete selected classes?')) return;
+      bulkDeleteBtn.disabled = true;
+      const orig = bulkDeleteBtn.textContent;
+      bulkDeleteBtn.textContent = 'Deleting...';
+      postJSON('api/classes.php', { action: 'bulk_delete', ids: selected }).then(resp=>{
+          if (resp && resp.ok) { showToast('Deleted ' + (resp.count || selected.length)); setTimeout(()=>location.reload(),600); }
+          else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown')); bulkDeleteBtn.disabled=false; bulkDeleteBtn.textContent=orig; }
+      }).catch(()=>{ showToast('Network error'); bulkDeleteBtn.disabled=false; bulkDeleteBtn.textContent=orig; });
+  });
+}
 
-/* Event delegation for Update/Delete inside table */
+/* Event delegation for Update/Delete inside table (works the same) */
 const tableWrap = document.querySelector('.table-wrap') || document;
 tableWrap.addEventListener('click', function(e){
   const up = e.target.closest && e.target.closest('.link-update');
@@ -793,12 +1026,19 @@ tableWrap.addEventListener('click', function(e){
   }
 }, false);
 
-/* small accessibility helpers */
+/* accessibility helper */
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     // bootstrap handles closing modals
   }
 });
+
+/* Initialize selection controls after DOM is ready */
+document.addEventListener('DOMContentLoaded', function(){
+  initSelectionControls();
+});
+/* Also initialize immediately (script placed at end, but safe) */
+initSelectionControls();
 </script>
 </body>
 </html>

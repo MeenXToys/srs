@@ -11,112 +11,133 @@ require_once 'config.php';
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
-/* Sliders side by side */
+/* ====== Page-specific styles (sliders + hero) ====== */
+.hero{
+  text-align:center;
+  padding:48px 18px 28px;
+  color: #e6eef8;
+}
+.hero h1{ font-size:2rem; margin:0 0 8px; letter-spacing:1px; }
+.hero p{ color: #aab8c8; margin:6px 0 18px; }
+
+/* Buttons row under hero */
+.hero-buttons{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
+.btn-primary{ background:linear-gradient(90deg,#004aad,#6366f1); color:#fff; padding:10px 16px; border-radius:8px; text-decoration:none; font-weight:700; }
+.btn-secondary{ background:transparent; border:1px solid rgba(255,255,255,0.08); color:#fff; padding:10px 16px; border-radius:8px; text-decoration:none; font-weight:700; }
+.btn-third{ background:linear-gradient(90deg,#06b6d4,#0ea5a1); color:#fff; padding:10px 16px; border-radius:8px; text-decoration:none; font-weight:700; }
+
+/* Sliders row */
 .sliders-row {
   display: flex;
-  gap: 40px;
+  gap: 28px;
   justify-content: center;
-  margin: 40px 0;
+  margin: 32px 12px;
   flex-wrap: wrap;
 }
+
+/* Each slider */
 .slider-container {
   position: relative;
-  width: 400px; /* same as old slider */
-  text-align: center;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  text-align: left;
+  color:#fff;
 }
+.slider-header { font-weight:800; margin:6px 0 10px; color:#e6eef8; }
+
+/* Slide item */
 .slider-slides {
   display: none;
   position: relative;
+  border-radius:8px;
+  overflow:hidden;
+  background:linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.12));
 }
 .slider-slides img {
   width: 100%;
-  height: 250px;
+  height: 260px;
   object-fit: cover;
-  border-radius: 8px;
+  display:block;
   cursor: pointer;
 }
 
-/* Caption below image */
+/* caption overlay bottom */
 .caption {
-  margin-top: 5px;
-  font-weight: bold;
-  color: #333;
-  font-size: 0.95rem;
-  transition: 0.3s;
-}
-.slider-slides:hover .caption {
-  color: #004aad;
+  padding:10px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.00), rgba(0,0,0,0.45));
+  color: #e6eef8;
+  font-weight:700;
+  position: absolute;
+  left:0; right:0; bottom:0;
+  font-size:0.96rem;
 }
 
 /* Arrows */
 .prev, .next {
   cursor: pointer;
   position: absolute;
-  top: 45%;
-  padding: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 8px 10px;
   font-weight: bold;
-  font-size: 20px;
+  font-size: 18px;
   color: #fff;
-  background-color: rgba(0,0,0,0.4);
-  border-radius: 3px;
+  background-color: rgba(0,0,0,0.35);
+  border-radius: 6px;
   user-select: none;
-  transition: 0.3s;
+  transition: background-color 0.15s;
+  z-index: 8;
 }
-.next { right: 0; }
-.prev { left: 0; }
+.next { right: 8px; }
+.prev { left: 8px; }
 .prev:hover, .next:hover { background-color: rgba(0,0,0,0.6); }
 
-/* Dots overlay on image, smaller and semi-transparent */
+/* Dots */
 .dot-container {
   position: absolute;
-  bottom: 10px; /* slightly above bottom of image */
+  bottom: 12px;
   width: 100%;
   text-align: center;
-  z-index: 10;
+  z-index: 9;
 }
 .dot {
   cursor: pointer;
-  height: 6px;          /* smaller */
-  width: 6px;           /* smaller */
-  margin: 2px 2px;
-  background-color: rgba(255,255,255,0.4); /* more transparent */
+  height: 8px;
+  width: 8px;
+  margin: 0 4px;
+  background-color: rgba(255,255,255,0.45);
   border-radius: 50%;
   display: inline-block;
-  transition: background-color 0.3s;
+  transition: background-color 0.2s, transform 0.15s;
 }
-.active, .dot:hover {
-  background-color: rgba(255,255,255,0.9);
+.dot.active, .dot:hover {
+  background-color: #ffffff;
+  transform: scale(1.15);
 }
 
 /* Fade animation */
-.fade { animation: fadeEffect 1s; }
-@keyframes fadeEffect { from {opacity: .4} to {opacity: 1} }
+.fade { animation: fadeEffect .6s ease-in-out; }
+@keyframes fadeEffect { from {opacity:.4} to {opacity:1} }
 
 /* LIGHTBOX */
 #lightbox {
   display:none;
   position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background: rgba(0,0,0,0.8);
-  justify-content:center;
-  align-items:center;
-  z-index:1000;
+  top:0;left:0;width:100%;height:100%;
+  background: rgba(0,0,0,0.85);
+  justify-content:center;align-items:center;z-index:1000;
 }
-#lightbox img {
-  max-width:90%;
-  max-height:90%;
-  border-radius:8px;
+#lightbox img { max-width:92%; max-height:92%; border-radius:8px; }
+.close-lightbox { position:absolute; top:18px; right:22px; font-size:36px; color:#fff; cursor:pointer; }
+
+/* responsive */
+@media (max-width:960px){
+  .slider-container { width: 46%; }
 }
-.close-lightbox {
-  position:absolute;
-  top:20px;
-  right:30px;
-  font-size:36px;
-  color:#fff;
-  cursor:pointer;
+@media (max-width:700px){
+  .sliders-row { flex-direction:column; align-items:center; gap:18px; }
+  .slider-container { width: 92%; }
+  .slider-slides img { height:220px; }
 }
 </style>
 </head>
@@ -128,87 +149,94 @@ require_once 'config.php';
   <h1>STUDENT REGISTRATION SYSTEM</h1>
   <p>Register online in minutes. Secure, fast, and paperless!</p>
   <div class="hero-buttons">
-    <a href="registration.php" class="btn btn-primary">Register Now</a>
-    <a href="login.php" class="btn btn-secondary">Log In</a>
-    <a href="timetable.php" class="btn btn-third">Timetable</a>
+    <a href="registration.php" class="btn-primary">Register Now</a>
+    <a href="login.php" class="btn-secondary">Log In</a>
+    <a href="timetable.php" class="btn-third">Timetable</a>
   </div>
 </div>
 
 <!-- TWO SLIDERS SIDE BY SIDE -->
-<div class="sliders-row">
-  <!-- GMI Events -->
-  <div class="slider-container">
-    <h3>GMI Events</h3>
-    <div class="slider-slides fade">
-      <img src="img/talentshow.jpg" alt="Activity 1">
+<div class="sliders-row" aria-label="Site sliders">
+
+  <!-- Slider: GMI Events -->
+  <div class="slider-container" data-slider-id="events" tabindex="0" aria-roledescription="carousel" aria-label="GMI Events">
+    <div class="slider-header">GMI Events</div>
+
+    <!-- slides: add/remove slides here -->
+    <div class="slider-slides" data-caption="Talent Show 2025">
+      <img src="img/talentshow.jpg" alt="Talent Show 2025">
       <div class="caption">Talent Show 2025</div>
     </div>
-    <div class="slider-slides fade">
-      <img src="img/storytelling_competition.jpg" alt="Activity 2">
+
+    <div class="slider-slides" data-caption="Storytelling Competition">
+      <img src="img/storytelling_competition.jpg" alt="Storytelling Competition">
       <div class="caption">Storytelling Competition</div>
     </div>
-    <div class="slider-slides fade">
-      <img src="img/nightmarket.jpg" alt="Activity 3">
+
+    <div class="slider-slides" data-caption="SRA Night Market">
+      <img src="img/nightmarket.jpg" alt="SRA Night Market">
       <div class="caption">SRA Night Market</div>
     </div>
-     <div class="slider-slides fade">
-      <img src="img/minicarnival.jpg" alt="Activity 1">
+
+    <div class="slider-slides" data-caption="Mini Sports Carnival">
+      <img src="img/minicarnival.jpg" alt="Mini Sports Carnival">
       <div class="caption">Mini Sports Carnival</div>
     </div>
-    <a class="prev" onclick="plusSlides(-1,0)">&#10094;</a>
-    <a class="next" onclick="plusSlides(1,0)">&#10095;</a>
-    <div class="dot-container">
-      <span class="dot" onclick="currentSlide(1,0)"></span>
-      <span class="dot" onclick="currentSlide(2,0)"></span>
-      <span class="dot" onclick="currentSlide(3,0)"></span>
-    </div>
+
+    <a class="prev" aria-hidden="true" data-action="prev">❮</a>
+    <a class="next" aria-hidden="true" data-action="next">❯</a>
+
+    <div class="dot-container" aria-hidden="true" data-dots></div>
   </div>
 
-  <!-- Life in GMI -->
-  <div class="slider-container">
-    <h3>Life in GMI</h3>
-    <div class="slider-slides fade">
-      <img src="img/openday.jpg" alt="Life 1">
+  <!-- Slider: Life in GMI -->
+  <div class="slider-container" data-slider-id="life" tabindex="0" aria-roledescription="carousel" aria-label="Life in GMI">
+    <div class="slider-header">Life in GMI</div>
+
+    <div class="slider-slides" data-caption="GMI Open Day">
+      <img src="img/openday.jpg" alt="GMI Open Day">
       <div class="caption">GMI Open Day</div>
     </div>
-    <div class="slider-slides fade">
-      <img src="img/raya.jpg" alt="Life 2">
+
+    <div class="slider-slides" data-caption="Raya with CBS6">
+      <img src="img/raya.jpg" alt="Raya with CBS6">
       <div class="caption">Raya with CBS6</div>
     </div>
-    <div class="slider-slides fade">
-      <img src="img/futsal.jpg" alt="Life 3">
+
+    <div class="slider-slides" data-caption="Futsal Revolution Day">
+      <img src="img/futsal.jpg" alt="Futsal Revolution Day">
       <div class="caption">Futsal Revolution Day</div>
     </div>
-     <div class="slider-slides fade">
-      <img src="img/penang.jpg" alt="Life 3">
+
+    <div class="slider-slides" data-caption="Penang Trip">
+      <img src="img/penang.jpg" alt="Penang Trip">
       <div class="caption">Penang Trip</div>
     </div>
-    <a class="prev" onclick="plusSlides(-1,1)">&#10094;</a>
-    <a class="next" onclick="plusSlides(1,1)">&#10095;</a>
-    <div class="dot-container">
-      <span class="dot" onclick="currentSlide(1,1)"></span>
-      <span class="dot" onclick="currentSlide(2,1)"></span>
-      <span class="dot" onclick="currentSlide(3,1)"></span>
-    </div>
+
+    <a class="prev" aria-hidden="true" data-action="prev">❮</a>
+    <a class="next" aria-hidden="true" data-action="next">❯</a>
+
+    <div class="dot-container" aria-hidden="true" data-dots></div>
   </div>
+
 </div>
 
 <!-- FEATURES -->
-<section>
-  <h2>Features</h2>
-  <div class="grid">
+<section class="container" style="margin-top:20px;">
+  <h2 style="color:#e6eef8;margin-bottom:10px;">Features</h2>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px;">
     <div class="card">
-      <i class="fa-solid fa-file-pen"></i>
+      <i class="fa-solid fa-file-pen" style="font-size:20px"></i>
       <h3>Easy Enrollment</h3>
       <p>Fill out forms online anytime, anywhere with ease.</p>
     </div>
     <div class="card">
-      <i class="fa-solid fa-lock"></i>
+      <i class="fa-solid fa-lock" style="font-size:20px"></i>
       <h3>Secure Data</h3>
       <p>Protects student information with advanced encryption.</p>
     </div>
     <div class="card">
-      <i class="fa-solid fa-chart-line"></i>
+      <i class="fa-solid fa-chart-line" style="font-size:20px"></i>
       <h3>Track Applications</h3>
       <p>Check your registration status instantly with real-time updates.</p>
     </div>
@@ -216,21 +244,21 @@ require_once 'config.php';
 </section>
 
 <!-- HOW IT WORKS -->
-<section>
-  <h2>How It Works</h2>
-  <div class="grid">
+<section class="container" style="margin-top:22px;">
+  <h2 style="color:#e6eef8;margin-bottom:10px;">How It Works</h2>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px;">
     <div class="card">
-      <i class="fa-solid fa-user"></i>
+      <i class="fa-solid fa-user" style="font-size:20px"></i>
       <h3>Create or Log In</h3>
       <p>Sign up or log in to access your student portal.</p>
     </div>
     <div class="card">
-      <i class="fa-solid fa-clipboard-list"></i>
+      <i class="fa-solid fa-clipboard-list" style="font-size:20px"></i>
       <h3>Fill in Registration Forms</h3>
       <p>Complete your student details securely online.</p>
     </div>
     <div class="card">
-      <i class="fa-solid fa-check-circle"></i>
+      <i class="fa-solid fa-check-circle" style="font-size:20px"></i>
       <h3>Confirm and Get Approval</h3>
       <p>Submit and wait for confirmation from administration.</p>
     </div>
@@ -238,56 +266,127 @@ require_once 'config.php';
 </section>
 
 <!-- LIGHTBOX -->
-<div id="lightbox">
-  <span class="close-lightbox" onclick="closeLightbox()">&times;</span>
+<div id="lightbox" role="dialog" aria-modal="true" aria-hidden="true">
+  <span class="close-lightbox" aria-label="Close" onclick="closeLightbox()">&times;</span>
   <img src="" alt="Enlarged Image">
 </div>
 
 <script>
-let slideIndexes = [1,1];
-showSlides(1,0);
-showSlides(1,1);
+/* ====== Slider logic (vanilla, robust) ====== */
+(function(){
+  const sliders = Array.from(document.querySelectorAll('.slider-container'));
+  const sliderState = new Map();
 
-function plusSlides(n, slider) {
-  showSlides(slideIndexes[slider] += n, slider);
-}
+  sliders.forEach((container, idx) => {
+    const slides = Array.from(container.querySelectorAll('.slider-slides'));
+    const dotsWrap = container.querySelector('[data-dots]');
+    const prevBtn = container.querySelector('[data-action="prev"]');
+    const nextBtn = container.querySelector('[data-action="next"]');
 
-function currentSlide(n, slider) {
-  showSlides(slideIndexes[slider] = n, slider);
-}
+    // Build dots dynamically
+    dotsWrap.innerHTML = '';
+    slides.forEach((s, i) => {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.setAttribute('role','button');
+      dot.setAttribute('aria-label','Slide ' + (i+1));
+      dot.dataset.index = i;
+      dotsWrap.appendChild(dot);
+    });
 
-function showSlides(n, slider) {
-  let slides = document.getElementsByClassName("slider-container")[slider].getElementsByClassName("slider-slides");
-  let dots = document.getElementsByClassName("slider-container")[slider].getElementsByClassName("dot");
-  if (n > slides.length) {slideIndexes[slider] = 1}
-  if (n < 1) {slideIndexes[slider] = slides.length}
-  for (let i = 0; i < slides.length; i++) slides[i].style.display = "none";
-  for (let i = 0; i < dots.length; i++) dots[i].className = dots[i].className.replace(" active", "");
-  slides[slideIndexes[slider]-1].style.display = "block";
-  dots[slideIndexes[slider]-1].className += " active";
-  slides[slideIndexes[slider]-1].classList.add("fade");
-}
+    // state
+    let current = 0;
+    let intervalId = null;
+    const INTERVAL_MS = 4000;
 
-// Auto-slide every 4 seconds for both sliders
-setInterval(() => { plusSlides(1,0); }, 4000);
-setInterval(() => { plusSlides(1,1); }, 4000);
+    function show(index) {
+      current = (index + slides.length) % slides.length;
+      slides.forEach((s,i) => {
+        s.style.display = (i === current) ? 'block' : 'none';
+        s.classList.toggle('fade', i === current);
+      });
+      const dots = Array.from(dotsWrap.children);
+      dots.forEach((d,i) => d.classList.toggle('active', i === current));
+    }
 
-// LIGHTBOX
-const lightbox = document.getElementById('lightbox');
-const lightboxImg = lightbox.querySelector('img');
-document.querySelectorAll('.slider-slides img').forEach(img => {
-  img.addEventListener('click', () => {
-    lightbox.style.display = 'flex';
-    lightboxImg.src = img.src;
+    // next/prev handlers
+    function next() { show(current + 1); }
+    function prev() { show(current - 1); }
+
+    // click handlers
+    prevBtn.addEventListener('click', (e) => { e.preventDefault(); prev(); resetTimer(); });
+    nextBtn.addEventListener('click', (e) => { e.preventDefault(); next(); resetTimer(); });
+
+    dotsWrap.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('dot')) return;
+      const i = parseInt(e.target.dataset.index,10);
+      show(i);
+      resetTimer();
+    });
+
+    // clicking image opens lightbox
+    slides.forEach(s => {
+      const img = s.querySelector('img');
+      if (!img) return;
+      img.addEventListener('click', () => openLightbox(img.src, img.alt || s.dataset.caption || ''));
+    });
+
+    // pause on hover/focus
+    container.addEventListener('mouseenter', pauseTimer);
+    container.addEventListener('mouseleave', resumeTimer);
+    container.addEventListener('focusin', pauseTimer);
+    container.addEventListener('focusout', resumeTimer);
+
+    // keyboard navigation (left/right)
+    container.addEventListener('keydown', (ev) => {
+      if (ev.key === 'ArrowLeft') { prev(); resetTimer(); ev.preventDefault(); }
+      if (ev.key === 'ArrowRight') { next(); resetTimer(); ev.preventDefault(); }
+    });
+
+    // timer functions
+    function startTimer() {
+      stopTimer();
+      intervalId = setInterval(next, INTERVAL_MS);
+      sliderState.set(container, { intervalId });
+    }
+    function stopTimer() { if (intervalId) { clearInterval(intervalId); intervalId = null; } sliderState.set(container, { intervalId: null }); }
+    function resetTimer(){ stopTimer(); startTimer(); }
+    function pauseTimer(){ stopTimer(); }
+    function resumeTimer(){ startTimer(); }
+
+    // init
+    show(0);
+    startTimer();
   });
-});
-function closeLightbox() { lightbox.style.display = 'none'; }
-lightbox.addEventListener('click', e => { if(e.target === lightbox) closeLightbox(); });
+
+  // Lightbox
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = lightbox.querySelector('img');
+  function openLightbox(src, alt){
+    lightboxImg.src = src;
+    lightboxImg.alt = alt || '';
+    lightbox.style.display = 'flex';
+    lightbox.setAttribute('aria-hidden','false');
+    document.body.style.overflow = 'hidden';
+  }
+  window.openLightbox = openLightbox;
+  function closeLightbox(){
+    lightbox.style.display = 'none';
+    lightboxImg.src = '';
+    lightbox.setAttribute('aria-hidden','true');
+    document.body.style.overflow = '';
+  }
+  window.closeLightbox = closeLightbox;
+  lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+
+  // expose to window (for debug)
+  window.__gmi_sliders = { count: document.querySelectorAll('.slider-container').length };
+})();
 </script>
 
 <!-- FOOTER -->
-<footer>
-  &copy; <?=date('Y')?> GMI Student Registration System | <a href="contactus.php">Contact Us</a>
+<footer style="text-align:center;padding:22px 12px;color:#aab8c8;">
+  &copy; <?=date('Y')?> GMI Student Registration System · <a href="contactus.php">Contact Us</a>
 </footer>
 </body>
 </html>
