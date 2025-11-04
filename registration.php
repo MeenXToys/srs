@@ -8,7 +8,12 @@ $old = [];
 
 // Load dropdown options
 try {
-    $departments = $pdo->query("SELECT DepartmentID, Dept_Code, Dept_Name FROM department ORDER BY Dept_Name")->fetchAll();
+    $departments = $pdo->query("
+    SELECT DepartmentID, Dept_Code, Dept_Name
+    FROM department
+    WHERE deleted_at IS NULL
+    ORDER BY Dept_Name 
+")->fetchAll();
     $courses     = $pdo->query("SELECT CourseID, Course_Code, Course_Name, DepartmentID FROM course ORDER BY Course_Name")->fetchAll();
     $semesters   = $pdo->query("SELECT DISTINCT Semester FROM class ORDER BY Semester")->fetchAll();
     $classes     = $pdo->query("SELECT ClassID, Class_Name, Semester, CourseID FROM class ORDER BY Class_Name")->fetchAll();

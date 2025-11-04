@@ -240,7 +240,7 @@ body { background: var(--bg); color: var(--text); font-family: Inter, system-ui,
   background: var(--card);
   border-radius:12px;
   padding:18px;
-  margin-top: 40px;
+  margin-top: 20px;
   box-shadow:0 8px 28px rgba(2,6,23,0.6);
   display:flex;
   flex-direction:column;

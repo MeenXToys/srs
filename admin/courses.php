@@ -1,5 +1,7 @@
 <?php
 // admin/courses.php
+// Full fixed admin courses page (includes improved JS to avoid "Network error")
+
 require_once __DIR__ . '/../config.php';
 require_admin();
 require_once __DIR__ . '/admin_nav.php';
@@ -9,7 +11,10 @@ if (!function_exists('e')) {
     function e($s){ return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 }
 
-// CSRF token
+// ensure session started (avoid notice)
+if (session_status() === PHP_SESSION_NONE) session_start();
+
+// ensure CSRF token
 if (!isset($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(24));
 $csrf = $_SESSION['csrf_token'];
 
@@ -25,7 +30,7 @@ $show_deleted = ($_GET['show_deleted'] ?? '') === '1';
 $allowed = ['name','code','students'];
 if (!in_array($sort, $allowed)) $sort = 'name';
 
-// helper functions (build sort links, arrow)
+// helpers
 function build_sort_link($col) {
     $params = $_GET;
     $currentSort = $params['sort'] ?? 'name';
@@ -46,7 +51,7 @@ function sort_arrow($col) {
 $has_deleted_at = false;
 try { $has_deleted_at = (bool)$pdo->query("SHOW COLUMNS FROM course LIKE 'deleted_at'")->fetch(); } catch(Exception $e) { $has_deleted_at = false; }
 
-// fetch departments for dropdown (id, code, name)
+// fetch departments for dropdown
 $departments = [];
 try {
     $dstmt = $pdo->query("SELECT DepartmentID, Dept_Code, Dept_Name FROM department ORDER BY Dept_Code IS NULL, Dept_Code ASC, Dept_Name ASC");
@@ -110,7 +115,7 @@ try {
     $errMsg = $e->getMessage();
 }
 
-// group rows by department (Dept_Code preferred else Dept_Name)
+// group rows by department
 $groups = [];
 foreach ($rows as $r) {
     $deptCode = $r['Dept_Code'] ?? '';
@@ -160,22 +165,21 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 <link rel="stylesheet" href="../style.css">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<!-- Bootstrap CSS for modals if needed -->
+<!-- Bootstrap CSS (for modal) -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
 :root{
   --bg:#0f1724;
   --card:#07111a;
-  --panel-dark:#0b1220;
   --muted:#9aa8bd;
   --text:#e8f6ff;
   --accent-blue-1:#2563eb;
   --accent-blue-2:#1d4ed8;
   --accent-red-1:#ef4444;
   --accent-red-2:#dc2626;
-  --accent-purple-1:#7c3aed;
-  --accent-purple-2:#6d28d9;
+  --accent-purple-1:#a84bff;
+  --accent-purple-2:#7c3aed;
   --select-bg: rgba(255,255,255,0.02);
   --select-border: rgba(255,255,255,0.04);
   --select-contrast: #dff6ff;
@@ -184,7 +188,7 @@ $flash = $_SESSION['flash'] ?? null; unset($_SESSION['flash']);
 /* page */
 body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
-/* Use the same wide center box as classes.php */
+/* center box */
 .center-box{
   max-width: none !important;
   width: calc(100% - 48px);
@@ -193,22 +197,45 @@ body { background: var(--bg); color: var(--text); font-family: Inter, system-ui,
   box-sizing: border-box;
 }
 
-/* Top actions & filters styling similar to classes.php */
+/* top filters */
 .admin-controls { margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
 .search-input{ padding:8px 12px; border-radius:10px; border:1px solid var(--select-border); background: var(--select-bg); color:var(--select-contrast); font-size:0.95rem; height:44px; }
 .search-buttons { display:flex; gap:8px; }
-.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; min-width:110px; height:44px; border-radius:12px; color:#fff; text-decoration:none; border:0; cursor:pointer; font-weight:500; font-size:1rem; box-shadow: 0 10px 30px rgba(2,6,23,0.6); }
-.add-btn{ background: linear-gradient(90deg,var(--accent-purple-1),var(--accent-purple-2)); min-width:130px; height:44px; border:1px solid rgba(255,255,255,0.04); }
-.btn-export{ background: linear-gradient(90deg,var(--accent-blue-1),var(--accent-blue-2)); min-width:130px; max-width:220px; height:44px; border:1px solid rgba(255,255,255,0.04); white-space:nowrap; }
-.btn-danger{ background: linear-gradient(90deg,var(--accent-red-1),var(--accent-red-2)); min-width:130px; height:44px; border:1px solid rgba(255,255,255,0.04); }
-.btn-muted{ padding:0 12px; min-width:80px; height:40px; border-radius:10px; background:#374151; color:white; border:1px solid rgba(255,255,255,0.03); }
 
-/* ensure toolbar buttons don't expand full width (matches classes.php) */
+/* pill buttons */
+.btn-pill {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:10px 28px;
+  height:44px;
+  border-radius:12px;
+  font-weight:700;
+  font-size:1rem;
+  color:#fff;
+  text-decoration:none;
+  border:1px solid rgba(255,255,255,0.06);
+  cursor:pointer;
+  box-shadow:
+    0 10px 20px rgba(2,6,23,0.5),
+    inset 0 -6px 18px rgba(255,255,255,0.03);
+  transition: transform .08s ease, box-shadow .12s ease, opacity .12s ease;
+}
+.btn-pill.add-pill { background: linear-gradient(90deg,var(--accent-purple-1),var(--accent-purple-2)); }
+.btn-pill.export-pill { background: linear-gradient(90deg,#3388ff,var(--accent-blue-2)); }
+.btn-pill.delete-pill { background: linear-gradient(90deg,#bf3b3b,#8e2b2b); }
+.btn-pill:hover { transform: translateY(-2px); box-shadow: 0 16px 28px rgba(2,6,23,0.6), inset 0 -6px 22px rgba(255,255,255,0.04); }
+
+/* small muted */
+.btn-muted{ padding:0 12px; min-width:80px; height:40px; border-radius:10px; background:#374151; color:white; border:1px solid rgba(255,255,255,0.03); display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+a.btn-muted { text-decoration:none; color:inherit; display:inline-flex; align-items:center; justify-content:center; }
+
+/* toolbar */
 .top-actions { display:flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap:nowrap; margin-bottom: 6px; }
-.top-actions .left-buttons, .top-actions .right-buttons { display:flex; gap:10px; align-items:center; flex: 0 0 auto; }
-.top-actions .left-buttons > .btn, .top-actions .left-buttons > a.btn { flex: 0 0 auto; width: auto !important; }
+.top-actions .left-buttons, .top-actions .right-buttons { display:flex; gap:14px; align-items:center; }
 
-/* Card similar to classes.php */
+/* card */
 .card{
   width:100% !important;
   max-width:none !important;
@@ -225,73 +252,32 @@ body { background: var(--bg); color: var(--text); font-family: Inter, system-ui,
   min-height:420px;
 }
 
-/* Table wrap: no inner scroll (page scrolls) */
-.table-wrap{
-  overflow:visible !important;
-  border-radius:8px;
-  margin-top:4px;
-  padding-right:0;
-  box-sizing:border-box;
-}
-
-/* Table layout */
-table {
-  width:100%;
-  border-collapse:collapse;
-  table-layout: auto;
-  min-width: 0;
-}
-th, td {
-  padding:12px;
-  border-top:1px solid rgba(255,255,255,0.03);
-  color:var(--text);
-  vertical-align:middle;
-  word-break:break-word;
-  white-space:normal;
-}
+/* table */
+.table-wrap{ overflow:visible !important; border-radius:8px; margin-top:4px; padding-right:0; box-sizing:border-box; }
+table { width:100%; border-collapse:collapse; table-layout: auto; min-width: 0; }
+th, td { padding:12px; border-top:1px solid rgba(255,255,255,0.03); color:var(--text); vertical-align:middle; word-break:break-word; white-space:normal; }
 th { color:var(--muted); text-align:left; font-weight:700; font-size:0.95rem; }
 
-/* make the checkbox column visible on left (user requested) */
+/* checkbox column */
 .checkbox-col { width:46px; text-align:center; }
 
-/* small code badge */
+/* code badge */
 .code-badge{ background:#071725; color:#7dd3fc; padding:6px 10px; border-radius:6px; font-weight:700; }
 
-/* action buttons inline */
+/* actions */
 .actions-inline{ display:flex; gap:12px; align-items:center; justify-content:flex-end; }
 .link-update{ color: #06b76a; background:none; border:0; padding:0; cursor:pointer; font-weight:700; }
 .link-delete{ color: var(--accent-red-1); background:none; border:0; padding:0; cursor:pointer; font-weight:700; }
 
-/* highlight selected row */
-.row-selected td { background: rgba(37,99,235,0.06); box-shadow: inset 0 0 0 1px rgba(37,99,235,0.06); }
-
-/* department header look */
-.dept-row td {
-  background: rgba(255,255,255,0.01);
-  padding:14px 12px;
-  font-weight:800;
-  color: #cfe8ff;
-  border-top: 1px solid rgba(255,255,255,0.03);
-}
+/* highlight */
+.row-selected td { background: rgba(37,99,235,0.06); }
+.dept-row td { background: rgba(255,255,255,0.01); padding:14px 12px; font-weight:800; color: #cfe8ff; border-top: 1px solid rgba(255,255,255,0.03); }
 .dept-sub { color: var(--muted); font-weight:600; margin-left:10px; font-size:0.95rem; }
-
-/* subtle hover */
 .row-hover:hover td { background: rgba(255,255,255,0.01); }
 
-/* modal styling kept from previous design */
-.modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;z-index:400;}
-.modal-backdrop.open{display:flex;backdrop-filter: blur(6px);background: rgba(2,6,23,0.5);}
-.modal {
-  width: 560px; max-width: 94%;
-  background: linear-gradient(180deg, #071026 0%, #081626 100%);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 14px; box-shadow: 0 22px 64px rgba(2,6,23,0.85);
-  color: var(--text); animation: fadeInScale 0.22s ease-out; overflow: hidden; display: flex; flex-direction: column;
-}
-.modal .modal-header { padding: 18px 22px; border-bottom: 1px solid rgba(255,255,255,0.03); display:flex; align-items:center; gap:12px; }
-.modal .modal-header h3 { margin:0; font-size:1.15rem; color:#f1f9ff; }
-.modal .modal-body { padding: 16px 22px; line-height:1.55; color: #dbeafe; font-size: 1rem; flex:1 1 auto; }
-.modal .modal-footer { display:flex; justify-content:flex-end; gap:12px; padding:14px 22px; border-top: 1px solid rgba(255,255,255,0.02); }
+/* modal styling minimal - rely on bootstrap centering */
+.modal-content { background: linear-gradient(180deg, #071026 0%, #081626 100%); border:1px solid rgba(255,255,255,0.06); color:var(--text); }
+.form-control, .form-select { background: rgba(255,255,255,0.02); color: var(--text); border:1px solid rgba(255,255,255,0.04); }
 
 /* toast */
 .toast{position:fixed;right:18px;bottom:18px;background:#0b1520;padding:12px 16px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);color:#e6eef8;z-index:600;display:none;}
@@ -299,16 +285,11 @@ th { color:var(--muted); text-align:left; font-weight:700; font-size:0.95rem; }
 .toast.success { background: #065f46; color: #ecfdf5; }
 .toast.error { background: #7f1d1d; color: #fee2e2; }
 
-/* small util */
-@keyframes fadeInScale { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
-@keyframes shake { 10%,90%{transform:translateX(-2px);}20%,80%{transform:translateX(4px);} }
-.shake { animation: shake 0.4s ease; }
-
-/* responsive tweaks */
 @media (max-width:740px) {
   .center-box { width: calc(100% - 28px); padding:16px; }
   .search-input { min-width:120px; }
   .checkbox-col { width:36px; }
+  .btn-pill { padding:10px 18px; min-width:110px; }
 }
 </style>
 </head>
@@ -335,7 +316,7 @@ th { color:var(--muted); text-align:left; font-weight:700; font-size:0.95rem; }
           </select>
           <div class="search-buttons">
             <button type="submit" class="btn-muted">Search</button>
-            <a href="courses.php" class="btn-muted">Clear</a>
+            <a href="courses.php" class="btn-muted" role="button">Clear</a>
           </div>
         </form>
 
@@ -347,9 +328,9 @@ th { color:var(--muted); text-align:left; font-weight:700; font-size:0.95rem; }
       <!-- TOP ACTIONS -->
       <div class="top-actions" aria-label="Actions">
         <div class="left-buttons">
-          <button id="openAddBtn" class="add-btn">＋ Add Course</button>
-          <a class="btn btn-export" href="api/courses.php?export=1">Export All</a>
-          <button id="bulkDeleteBtn" class="btn-danger">Delete Selected</button>
+          <button id="openAddBtn" class="btn-pill add-pill">＋ Add Class</button>
+          <a class="btn-pill export-pill" href="api/courses.php?export=1" role="button">Export All</a>
+          <button id="bulkDeleteBtn" class="btn-pill delete-pill">Delete Selected</button>
         </div>
 
         <div class="right-buttons">
@@ -361,7 +342,6 @@ th { color:var(--muted); text-align:left; font-weight:700; font-size:0.95rem; }
           <?php endif; ?>
         </div>
       </div>
-      <!-- /TOP ACTIONS -->
 
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -448,86 +428,145 @@ th { color:var(--muted); text-align:left; font-weight:700; font-size:0.95rem; }
   </div>
 </main>
 
-<!-- Add/Edit Modal (styled like classes) -->
-<div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modal-header"><h3 id="modalTitle">Add Course</h3></div>
+<!-- Add/Edit Modal (Bootstrap centered) -->
+<div class="modal fade" id="courseModal" tabindex="-1" aria-labelledby="courseModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <form id="modalForm" class="modal-body p-4" autocomplete="off">
+        <div class="modal-header">
+          <h5 class="modal-title" id="courseModalLabel">Add Course</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
 
-    <form id="modalForm" class="modal-body" autocomplete="off">
-      <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-      <input type="hidden" name="action" id="modalAction" value="add">
-      <input type="hidden" name="id" id="modalId" value="0">
+        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+        <input type="hidden" name="action" id="modalAction" value="add">
+        <input type="hidden" name="id" id="modalId" value="0">
 
-      <div class="form-row">
-        <label for="modal_code">Course Code</label>
-        <input id="modal_code" name="course_code" type="text" required placeholder="e.g. CID, MED, EED" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--text);">
-      </div>
+        <div class="mb-3">
+          <label for="modal_code" class="form-label">Course Code</label>
+          <input id="modal_code" name="course_code" type="text" required autocomplete="off" placeholder="e.g. CID, MED, EED" class="form-control">
+        </div>
 
-      <div class="form-row">
-        <label for="modal_name">Course Name</label>
-        <input id="modal_name" name="course_name" type="text" required placeholder="e.g. COMPUTER & INFORMATION" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--text);">
-      </div>
+        <div class="mb-3">
+          <label for="modal_name" class="form-label">Course Name</label>
+          <input id="modal_name" name="course_name" type="text" required autocomplete="off" placeholder="e.g. COMPUTER & INFORMATION" class="form-control">
+        </div>
 
-      <div class="form-row">
-        <label for="modal_dept">Department <span style="color:#f87171;font-weight:700;">(required)</span></label>
-        <div class="select-wrap">
-          <select id="modal_dept" name="department_id" required style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--text);">
+        <div class="mb-3">
+          <label for="modal_dept" class="form-label">Department <span style="color:#f87171;font-weight:700;">(required)</span></label>
+          <select id="modal_dept" name="department_id" required class="form-select">
             <option value="" disabled selected>-- Select department --</option>
             <?php foreach ($departments as $d): ?>
               <option value="<?= e($d['DepartmentID']) ?>"><?= e($d['Dept_Code'] ? "{$d['Dept_Code']} — {$d['Dept_Name']}" : $d['Dept_Name']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
-      </div>
 
-      <div class="modal-footer">
-        <button type="button" id="modalCancel" class="btn-muted">Cancel</button>
-        <button id="modalSubmit" class="btn" type="submit" style="background:linear-gradient(90deg,var(--accent-blue-1),var(--accent-blue-2));color:#fff;">Save</button>
-      </div>
-    </form>
+        <div class="d-flex justify-content-end gap-2">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="modalCancel">Cancel</button>
+          <button id="modalSubmit" class="btn" type="submit" style="background:linear-gradient(90deg,var(--accent-blue-1),var(--accent-blue-2));color:#fff;">Save</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
-<!-- DELETE CONFIRMATION MODAL -->
-<div id="deleteBackdrop" class="modal-backdrop" aria-hidden="true">
-  <div class="modal delete-modal" role="dialog" aria-modal="true">
-    <div class="modal-header"><h3>⚠️ Confirm Delete</h3></div>
-    <div class="modal-body">
-      <p>You are about to delete <strong id="deleteName"></strong>.</p>
-      <p style="background: rgba(239,68,68,0.06); border-left:3px solid var(--accent-red-1); padding:8px; border-radius:6px; color:#f87171;">
-        This will soft-delete the course (if enabled).
-      </p>
-      <label class="confirm-label" for="confirmDelete">Please type <code>DELETE</code> below to confirm:</label>
-      <input id="confirmDelete" type="text" placeholder="Type DELETE here" style="width:100%;padding:10px;margin-top:8px;border-radius:8px;background:#071025;border:1px solid rgba(255,255,255,0.04);color:var(--text);">
-    </div>
-    <div class="modal-footer">
-      <button id="deleteCancel" class="btn-muted">Cancel</button>
-      <button id="deleteConfirm" class="btn-danger" disabled>Delete permanently</button>
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">⚠️ Confirm Delete</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>You are about to delete <strong id="deleteName"></strong>.</p>
+        <p style="background: rgba(239,68,68,0.06); border-left:3px solid var(--accent-red-1); padding:8px; border-radius:6px; color:#f87171;">
+          This will soft-delete the course (if enabled).
+        </p>
+        <label class="confirm-label" for="confirmDelete" style="color:#6b7280; display:block; margin-top:8px;">
+          Please type <code>DELETE</code> below to confirm:
+        </label>
+        <input id="confirmDelete" type="text" placeholder="Type DELETE here" class="form-control mt-2">
+      </div>
+      <div class="modal-footer">
+        <button id="deleteCancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="deleteConfirm" type="button" class="btn" disabled style="background:linear-gradient(90deg,var(--accent-red-1),var(--accent-red-2));color:#fff;">Delete permanently</button>
+      </div>
     </div>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
 
+<!-- Bootstrap JS bundle (Popper included) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
+// expose csrf token for JS
 const csrfToken = <?= json_encode($csrf) ?>;
 const courseMap = <?= json_encode($map, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
 
-function postJSON(url, data){
-    const fd = new FormData();
-    for (const k in data) {
-        if (Array.isArray(data[k])) data[k].forEach(v => fd.append(k+'[]', v));
-        else fd.append(k, data[k]);
-    }
-    fd.append('csrf_token', csrfToken);
-    return fetch(url, { method:'POST', body: fd, credentials:'same-origin' }).then(r => r.json());
-}
-function showToast(msg, timeout=2200, cls='') {
-    const s = document.getElementById('toast'); s.textContent = msg; s.classList.add('show'); if (cls) s.classList.add(cls);
-    setTimeout(()=> { s.classList.remove('show'); if (cls) s.classList.remove(cls); }, timeout);
+/* Improved showToast to avoid overlapping timers */
+function showToast(msg, t=2200, cls='') {
+  const s = document.getElementById('toast');
+  if (!s) return console.log('Toast:', msg);
+  s.textContent = msg;
+  s.classList.remove('success','error','show');
+  if (cls) s.classList.add(cls);
+  s.classList.add('show');
+  if (s._hideTimer) clearTimeout(s._hideTimer);
+  s._hideTimer = setTimeout(()=>{ s.classList.remove('show'); if (cls) s.classList.remove(cls); s._hideTimer = null; }, t);
 }
 
-// elements
+/* Robust postJSON with timeout and better errors (returns parsed payload or {ok:false,error:...}) */
+async function postJSON(url, data, opts = {}) {
+  const timeout = opts.timeout || 10000; // 10s
+  const controller = new AbortController();
+  const id = setTimeout(()=> controller.abort(), timeout);
+
+  try {
+    const fd = new FormData();
+    for (const k in data) {
+      if (!Object.prototype.hasOwnProperty.call(data, k)) continue;
+      if (Array.isArray(data[k])) data[k].forEach(v => fd.append(k+'[]', v));
+      else fd.append(k, data[k]);
+    }
+    if (!fd.has('csrf_token') && typeof csrfToken !== 'undefined') fd.append('csrf_token', csrfToken);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    clearTimeout(id);
+
+    const text = await res.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch (e) {
+      const msg = `Server returned non-JSON (${res.status} ${res.statusText}). Response: ${text ? text.substring(0,500) : '[empty]'}`;
+      return { ok: false, error: msg, status: res.status, raw: text };
+    }
+
+    if (!res.ok) {
+      const errMsg = payload && payload.error ? payload.error : `HTTP ${res.status} ${res.statusText}`;
+      return { ok: false, error: errMsg, status: res.status, payload };
+    }
+    return payload ?? { ok: true };
+  } catch (err) {
+    clearTimeout(id);
+    if (err.name === 'AbortError') {
+      return { ok: false, error: 'Request timed out' };
+    }
+    return { ok: false, error: 'Network error: ' + (err.message || String(err)) };
+  }
+}
+
+/* Checkbox / selection UI */
 const chkAll = document.getElementById('chkAll');
 if (chkAll) chkAll.addEventListener('change', ()=> {
   const checked = chkAll.checked;
@@ -538,19 +577,15 @@ if (chkAll) chkAll.addEventListener('change', ()=> {
     }
   });
 });
-
-// helper to toggle row style when checkbox changes
 function toggleRowSelected(checkbox) {
   const tr = checkbox.closest('tr');
   if (!tr) return;
   if (checkbox.checked) tr.classList.add('row-selected');
   else tr.classList.remove('row-selected');
 }
-// wire up row checkboxes to reflect selected styling
 document.querySelectorAll('.row-chk').forEach(cb=>{
   cb.addEventListener('change', ()=> {
     toggleRowSelected(cb);
-    // keep master checkbox in sync
     const all = Array.from(document.querySelectorAll('.row-chk')).filter(x => !x.disabled);
     if (all.length) {
       const allChecked = all.every(x => x.checked);
@@ -564,42 +599,37 @@ document.querySelectorAll('.row-chk').forEach(cb=>{
   });
 });
 
-// modal elements
-const modalBackdrop = document.getElementById('modalBackdrop');
-const modalTitle = document.getElementById('modalTitle');
+/* Bootstrap modal instances */
+const courseModalEl = document.getElementById('courseModal');
+const deleteModalEl = document.getElementById('deleteModal');
+const courseModal = courseModalEl ? new bootstrap.Modal(courseModalEl, { keyboard: false }) : null;
+const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl, { keyboard: false }) : null;
+
+/* modal elements */
 const modalForm = document.getElementById('modalForm');
 const modalAction = document.getElementById('modalAction');
 const modalId = document.getElementById('modalId');
 const modalCode = document.getElementById('modal_code');
 const modalName = document.getElementById('modal_name');
 const modalDept = document.getElementById('modal_dept');
-const modalCancel = document.getElementById('modalCancel');
 const modalSubmit = document.getElementById('modalSubmit');
-
-// delete modal elements
-const deleteBackdrop = document.getElementById('deleteBackdrop');
-const deleteName = document.getElementById('deleteName');
-const confirmDelete = document.getElementById('confirmDelete');
-const deleteConfirm = document.getElementById('deleteConfirm');
-const deleteCancel = document.getElementById('deleteCancel');
-
 const openAddBtn = document.getElementById('openAddBtn');
 
-// open add
+/* open add */
 if (openAddBtn) openAddBtn.addEventListener('click', ()=> {
     modalAction.value = 'add';
     modalId.value = 0;
     if (modalCode) modalCode.value = '';
     if (modalName) modalName.value = '';
     if (modalDept) modalDept.value = '';
-    modalTitle.textContent = 'Add Course';
+    document.getElementById('courseModalLabel').textContent = 'Add Course';
     modalSubmit.textContent = 'Save';
-    modalBackdrop.classList.add('open');
-    if (modalCode) setTimeout(()=>modalCode.focus(),120);
+    if (courseModal) courseModal.show();
+    setTimeout(()=> modalCode && modalCode.focus(), 120);
 });
 
-// edit & delete (delegation)
-document.addEventListener('click', function(e) {
+/* edit & delete delegation */
+document.addEventListener('click', async function(e) {
     const up = e.target.closest && e.target.closest('.link-update');
     if (up) {
         const id = up.dataset.id; const d = courseMap[id] || {};
@@ -608,32 +638,30 @@ document.addEventListener('click', function(e) {
         if (modalCode) modalCode.value = d.Course_Code || '';
         if (modalName) modalName.value = d.Course_Name || '';
         if (modalDept) modalDept.value = d.DepartmentID || '';
-        modalTitle.textContent = 'Update Course';
+        document.getElementById('courseModalLabel').textContent = 'Update Course';
         modalSubmit.textContent = 'Update';
-        modalBackdrop.classList.add('open');
-        if (modalCode) setTimeout(()=>modalCode.focus(),120);
+        if (courseModal) courseModal.show();
+        setTimeout(()=> modalCode && modalCode.focus(), 120);
         e.preventDefault();
         return;
     }
     const del = e.target.closest && e.target.closest('.link-delete');
     if (del) {
         const id = del.dataset.id; const d = courseMap[id] || {};
-        deleteName.textContent = d.Course_Name || ('#'+id);
-        confirmDelete.value = '';
-        deleteConfirm.disabled = true;
-        deleteConfirm.dataset.id = id;
-        deleteBackdrop.classList.add('open');
-        setTimeout(()=> confirmDelete.focus(),120);
+        document.getElementById('deleteName').textContent = d.Course_Name || ('#'+id);
+        document.getElementById('confirmDelete').value = '';
+        const delBtn = document.getElementById('deleteConfirm');
+        delBtn.disabled = true;
+        delBtn.dataset.id = id;
+        if (deleteModal) deleteModal.show();
+        setTimeout(()=> document.getElementById('confirmDelete').focus(), 120);
         e.preventDefault();
         return;
     }
 });
 
-// cancel modal
-if (modalCancel) modalCancel.addEventListener('click', ()=> modalBackdrop.classList.remove('open'));
-
-// submit add/edit
-if (modalForm) modalForm.addEventListener('submit', function(e){
+/* submit add/edit */
+if (modalForm) modalForm.addEventListener('submit', async function(e){
     e.preventDefault();
     const act = modalAction.value;
     const id = modalId.value;
@@ -648,65 +676,58 @@ if (modalForm) modalForm.addEventListener('submit', function(e){
     btn.textContent = (act==='edit') ? 'Updating...' : 'Saving...';
     const payload = { action: act, course_code: code, course_name: name, department_id: dept };
     if (act === 'edit') payload.id = id;
-    postJSON('api/courses.php', payload).then(resp=>{
-        btn.disabled = false; btn.textContent = orig;
-        if (resp && resp.ok) {
-            modalBackdrop.classList.remove('open');
-            showToast('Saved', 1200, 'success');
-            setTimeout(()=> location.reload(), 600);
-        } else {
-            showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
-        }
-    }).catch(()=>{ btn.disabled = false; btn.textContent = orig; showToast('Network error',2200,'error'); });
+    const resp = await postJSON('api/courses.php', payload);
+    btn.disabled = false; btn.textContent = orig;
+    if (resp && resp.ok) {
+        if (courseModal) courseModal.hide();
+        showToast('Saved', 1200, 'success');
+        setTimeout(()=> location.reload(), 600);
+    } else {
+        showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 4500, 'error');
+    }
 });
 
-// delete flow (confirm input)
+/* delete confirm handling */
+const confirmDelete = document.getElementById('confirmDelete');
+const deleteConfirm = document.getElementById('deleteConfirm');
 if (confirmDelete) {
   confirmDelete.addEventListener('input', ()=> {
       deleteConfirm.disabled = (confirmDelete.value !== 'DELETE');
       if (confirmDelete.value.length >= 6 && confirmDelete.value !== 'DELETE') {
-          deleteConfirm.classList.add('shake');
-          setTimeout(()=> deleteConfirm.classList.remove('shake'), 380);
+          confirmDelete.classList.add('shake');
+          setTimeout(()=> confirmDelete.classList.remove('shake'), 380);
       }
   });
 }
-if (deleteCancel) deleteCancel.addEventListener('click', ()=> deleteBackdrop.classList.remove('open'));
-if (deleteConfirm) deleteConfirm.addEventListener('click', ()=> {
-    const id = deleteConfirm.dataset.id;
-    const btn = deleteConfirm; btn.disabled = true; const orig = btn.textContent || 'Deleting...'; btn.textContent = 'Deleting...';
-    postJSON('api/courses.php', { action: 'delete', id: id }).then(resp=>{
-        if (resp && resp.ok) { deleteBackdrop.classList.remove('open'); showToast('Deleted', 1200, 'success'); setTimeout(()=>location.reload(),600); }
-        else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error'); btn.disabled = false; btn.textContent = orig; }
-    }).catch(()=>{ showToast('Network error',2500,'error'); btn.disabled = false; btn.textContent = orig; });
+if (deleteConfirm) deleteConfirm.addEventListener('click', async function(){
+    const id = this.dataset.id;
+    const btn = this; btn.disabled = true; const orig = btn.textContent || 'Deleting...'; btn.textContent = 'Deleting...';
+    const resp = await postJSON('api/courses.php', { action: 'delete', id: id });
+    if (resp && resp.ok) { if (deleteModal) deleteModal.hide(); showToast('Deleted', 1200, 'success'); setTimeout(()=>location.reload(),600); }
+    else { showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 4500, 'error'); btn.disabled=false; btn.textContent=orig; }
 });
 
-// undo
-document.addEventListener('click', function(e){
+/* undo */
+document.addEventListener('click', async function(e){
     const u = e.target.closest && e.target.closest('[data-undo-id]');
     if (u) {
         const id = u.dataset.undoId;
-        postJSON('api/courses.php', { action: 'undo', id: id }).then(resp=>{
-            if (resp && resp.ok) { showToast('Restored', 1200, 'success'); setTimeout(()=>location.reload(),600); }
-            else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
-        }).catch(()=>showToast('Network error',2500,'error'));
+        const resp = await postJSON('api/courses.php', { action: 'undo', id: id });
+        if (resp && resp.ok) { showToast('Restored', 1200, 'success'); setTimeout(()=>location.reload(),600); }
+        else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 4500, 'error');
     }
 });
 
-// bulk delete
+/* bulk delete */
 const bulkBtn = document.getElementById('bulkDeleteBtn');
-if (bulkBtn) bulkBtn.addEventListener('click', ()=> {
+if (bulkBtn) bulkBtn.addEventListener('click', async ()=> {
     const selected = Array.from(document.querySelectorAll('.row-chk')).filter(c=>c.checked).map(c=>c.value);
     if (!selected.length) return alert('Select rows first');
     if (!confirm('Delete selected courses?')) return;
-    postJSON('api/courses.php', { action: 'bulk_delete', ids: selected }).then(resp=>{
-        if (resp && resp.ok) { showToast('Deleted ' + (resp.count || selected.length), 1200, 'success'); setTimeout(()=>location.reload(),600); }
-        else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 2500, 'error');
-    }).catch(()=>showToast('Network error',2500,'error'));
+    const resp = await postJSON('api/courses.php', { action: 'bulk_delete', ids: selected });
+    if (resp && resp.ok) { showToast('Deleted ' + (resp.count || selected.length), 1200, 'success'); setTimeout(()=>location.reload(),600); }
+    else showToast('Error: ' + (resp && resp.error ? resp.error : 'Unknown'), 4500, 'error');
 });
-
-// close modals on backdrop click & Escape
-document.querySelectorAll('.modal-backdrop').forEach(b => b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); }));
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.open').forEach(b=>b.classList.remove('open')); });
 </script>
 </body>
 </html>

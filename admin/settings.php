@@ -210,7 +210,7 @@ body{margin:0;color:var(--text);font-family:Inter,system-ui,Arial,sans-serif;-we
 .card{background:var(--card);border-radius:12px;padding:18px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 48px rgba(0,0,0,0.6);}
 
 /* layout */
-.grid {display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start}
+.grid {display:grid;grid-template-columns:auto auto auto;gap:18px;align-items:start}
 @media (max-width:880px){ .grid{grid-template-columns:1fr} }
 
 /* profile box */
