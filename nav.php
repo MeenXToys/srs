@@ -38,7 +38,7 @@ $isAdmin = $loggedIn && strcasecmp($role, 'Admin') === 0;
 <!-- Navigation Bar -->
 <nav class="navbar" aria-label="Main navigation">
   <div class="logo">
-    <a href="index.php" title="Main Menu">
+    <a href="dashboard.php" title="Main Menu">
       <img src="img/favicon.png" alt="GMI Logo" class="nav-logo">
     </a>
   </div>

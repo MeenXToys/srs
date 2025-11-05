@@ -27,16 +27,29 @@ if (!empty($profile['Profile_Image'])) {
   }
 }
 
-// metrics (replace with real queries if you have them)
-$gpa = 3.72;
-$credits = 84;
-$attendance = 95;
+// ----------------------------------------------------
+// METRICS: CALCULATE CGPA FROM DATABASE
+// ----------------------------------------------------
+
+// 1. Calculate CGPA (simple average of all semester GPAs)
+$cgpaStmt = $pdo->prepare("SELECT ROUND(AVG(GPA), 2) AS cgpa, COUNT(*) AS count_gpa FROM gpa WHERE UserID = :uid");
+$cgpaStmt->execute([':uid' => $_SESSION['user']['UserID']]);
+$cgpaResult = $cgpaStmt->fetch(PDO::FETCH_ASSOC);
+
+$gpa = (float)($cgpaResult['cgpa'] ?? 0.00); // Set $gpa to calculated CGPA, default to 0.00 if none
+// You might also want to display 'N/A' if $gpa is 0.00 and $cgpaResult['count_gpa'] is 0.
+
+// 2. Placeholder/Example Metrics
+$credits = 84; // Needs a real query for total completed credits
+$attendance = 95; // Needs a real query for overall attendance percentage
 $status = 'Active';
+
 $recent = [
   ['time' => '2025-11-02', 'text' => 'Registered for DMTM1 (Sem 1)'],
   ['time' => '2025-10-29', 'text' => 'Course registration opens next week'],
   ['time' => '2025-10-22', 'text' => 'Library hours extended during exams'],
 ];
+// ----------------------------------------------------
 ?>
 <!doctype html>
 <html lang="en">
@@ -471,11 +484,9 @@ $recent = [
 
 <body>
 
-  <!-- keep nav.php (your main navigation bar) -->
   <?php include 'nav.php'; ?>
 
   <main class="main-wrap fade-up">
-    <!-- title + welcome under navbar -->
     <div class="header-only">
       <div class="header-left">
         <div>
@@ -490,10 +501,10 @@ $recent = [
     </div>
 
     <div class="dashboard">
-      <!-- SIDEBAR -->
       <aside class="sidebar fade-up">
         <div class="avatar-wrap">
           <div class="avatar"><img src="<?= htmlspecialchars($avatar) ?>" alt="avatar"></div>
+          
         </div>
 
         <div class="user-info">
@@ -504,10 +515,10 @@ $recent = [
         </div>
 
         <div class="side-stats">
-          <div class="side-stat">
-            <div class="num"><?= number_format($gpa, 2) ?></div>
-            <div class="lbl">GPA</div>
-          </div>
+          <a href="gpa.php" class="tile" style="text-decoration:none;">
+  <div class="num"><?= $gpa > 0 ? number_format($gpa, 2) : 'N/A' ?></div>
+  <div class="lbl">Current CGPA</div>
+</a>
           <div class="side-stat">
             <div class="num"><?= (int) $credits ?></div>
             <div class="lbl">Credits</div>
@@ -537,17 +548,16 @@ $recent = [
         </div>
       </aside>
 
-      <!-- MAIN -->
       <section class="main fade-up">
         <div class="tiles">
           <div class="tile">
             <div class="num"><?= (int) $credits ?></div>
             <div class="lbl">Completed Credits</div>
           </div>
-          <div class="tile">
-            <div class="num"><?= number_format($gpa, 2) ?></div>
-            <div class="lbl">Current GPA</div>
-          </div>
+<a href="gpa.php" class="tile" style="text-decoration:none;">
+  <div class="num"><?= $gpa > 0 ? number_format($gpa, 2) : 'N/A' ?></div>
+  <div class="lbl">Current CGPA</div>
+</a>
           <div class="tile">
             <div class="num"><?= (int) $attendance ?>%</div>
             <div class="lbl">Attendance</div>

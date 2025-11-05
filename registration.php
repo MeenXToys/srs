@@ -72,8 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Insert into student (matches V4 schema)
             $stmt = $pdo->prepare("
-                INSERT INTO student (UserID, StudentID, ClassID, FullName, IC_Number, Phone, Profile_Image)
-                VALUES (?, ?, ?, ?, ?, ?, NULL)
+                INSERT INTO student (UserID, StudentID, ClassID, FullName, IC_Number, Phone)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $userId,
@@ -105,116 +105,146 @@ function old($k, $d = '') { global $old; return htmlspecialchars($old[$k] ?? $d,
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="img/favicon.png" type="image/png">
   <link rel="stylesheet" href="style.css">
+  
+  <style>
+    /* 1. Pastikan body adalah kontena penuh */
+    html, body {
+        min-height: 100vh;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    body {
+        /* Jadikan body Flex Container untuk menempatkan nav dan wrapper utama */
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 2. Kontena Baru untuk bahagian Kiri dan Kanan */
+    .main-content-wrapper {
+        display: flex; /* KUNCI: Aktifkan Flexbox */
+        flex-direction: row;
+        flex-grow: 1; /* Biarkan ia mengisi ruang yang tinggal */
+    }
+
+    /* 3. Pastikan seksyen kiri dan kanan mempunyai lebar dan meregang penuh dalam wrapper */
+    .left-section, .right-section {
+        width: 50%;
+        /* Pastikan gaya CSS lain (background, padding, dll.) berada dalam style.css asal anda */
+    }
+    
+    /* 4. Buang float untuk seksyen Kiri/Kanan jika ada, atau pastikan ia diletakkan di dalam wrapper Flexbox */
+    /* Jika .left-section dan .right-section anda menggunakan float di style.css, anda mungkin perlu mengalih keluar float:left/right di sana */
+    /* Jika .right-section adalah yang mengandungi banyak kandungan, ia akan menentukan ketinggian, dan .left-section akan mengikutinya. */
+  </style>
 </head>
 <body>
 <?php include 'nav.php'; ?>
 
-<div class="left-section">
-  <div class="left-content">
-    <h1>STUDENT REGISTRATION SYSTEM</h1>
-  </div>
-</div>
-
-<div class="right-section">
-  <div class="registration-form">
-    <h1>REGISTRATION</h1>
-
-    <?php if ($errors): ?>
-      <div style="background:#ffe6e6;padding:10px;border-radius:8px;color:#900;margin-bottom:12px;">
-        <?php foreach ($errors as $e): ?><div><?=htmlspecialchars($e)?></div><?php endforeach; ?>
+<div class="main-content-wrapper">
+    <div class="left-section">
+      <div class="left-content">
+        <h1>STUDENT REGISTRATION SYSTEM</h1>
       </div>
-    <?php endif; ?>
+    </div>
 
-    <form method="post" action="registration.php" novalidate>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Email:</label>
-          <input type="email" name="email" required value="<?= old('email') ?>">
-        </div>
-        <div class="form-group">
-          <label>Password:</label>
-          <input type="password" name="password" required>
-        </div>
+    <div class="right-section">
+      <div class="registration-form">
+        <h1>REGISTRATION</h1>
+
+        <?php if ($errors): ?>
+          <div style="background:#ffe6e6;padding:10px;border-radius:8px;color:#900;margin-bottom:12px;">
+            <?php foreach ($errors as $e): ?><div><?=htmlspecialchars($e)?></div><?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+
+        <form method="post" action="registration.php" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Email:</label>
+              <input type="email" name="email" required value="<?= old('email') ?>">
+            </div>
+            <div class="form-group">
+              <label>Password:</label>
+              <input type="password" name="password" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Student ID:</label>
+              <input type="text" name="student_id" required value="<?= old('student_id') ?>">
+            </div>
+            <div class="form-group">
+              <label>Semester:</label>
+              <select name="semester" required>
+                <option value="">-- Select Semester --</option>
+                <?php foreach ($semesters as $s): $val = $s['Semester']; ?>
+                  <option value="<?= htmlspecialchars($val) ?>" <?= old('semester') == $val ? 'selected' : '' ?>>Semester <?= htmlspecialchars($val) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Name:</label>
+              <input type="text" name="name" required value="<?= old('name') ?>">
+            </div>
+            <div class="form-group">
+              <label>Department:</label>
+              <select name="department" id="department-select" required>
+                <option value="">-- Select Department --</option>
+                <?php foreach ($departments as $d): ?>
+                  <option value="<?= $d['DepartmentID'] ?>" <?= old('department') == $d['DepartmentID'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($d['Dept_Code'] . ' - ' . $d['Dept_Name']) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>IC Number:</label>
+              <input type="text" name="ic" value="<?= old('ic') ?>">
+            </div>
+            <div class="form-group">
+              <label>Course:</label>
+              <select name="course" id="course-select" required>
+                <option value="">-- Select Course --</option>
+                <?php foreach ($courses as $c): ?>
+                  <option value="<?= $c['CourseID'] ?>" data-dept="<?= $c['DepartmentID'] ?>" <?= old('course') == $c['CourseID'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($c['Course_Code'] . ' - ' . $c['Course_Name']) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Phone Number:</label>
+              <input type="text" name="phone" value="<?= old('phone') ?>">
+            </div>
+            <div class="form-group">
+              <label>Class:</label>
+              <select name="class" id="class-select" required>
+                <option value="">-- Select Class --</option>
+                <?php foreach ($classes as $cl): ?>
+                  <option value="<?= $cl['ClassID'] ?>" data-course="<?= $cl['CourseID'] ?>" data-sem="<?= $cl['Semester'] ?>" <?= old('class') == $cl['ClassID'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($cl['Class_Name'] . ' (Sem ' . $cl['Semester'] . ')') ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+
+          <button class="register-button" type="submit">REGISTER</button>
+        </form>
       </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Student ID:</label>
-          <input type="text" name="student_id" required value="<?= old('student_id') ?>">
-        </div>
-        <div class="form-group">
-          <label>Semester:</label>
-          <select name="semester" required>
-            <option value="">-- Select Semester --</option>
-            <?php foreach ($semesters as $s): $val = $s['Semester']; ?>
-              <option value="<?= htmlspecialchars($val) ?>" <?= old('semester') == $val ? 'selected' : '' ?>>Semester <?= htmlspecialchars($val) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Name:</label>
-          <input type="text" name="name" required value="<?= old('name') ?>">
-        </div>
-        <div class="form-group">
-          <label>Department:</label>
-          <select name="department" id="department-select" required>
-            <option value="">-- Select Department --</option>
-            <?php foreach ($departments as $d): ?>
-              <option value="<?= $d['DepartmentID'] ?>" <?= old('department') == $d['DepartmentID'] ? 'selected' : '' ?>>
-                <?= htmlspecialchars($d['Dept_Code'] . ' - ' . $d['Dept_Name']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>IC Number:</label>
-          <input type="text" name="ic" value="<?= old('ic') ?>">
-        </div>
-        <div class="form-group">
-          <label>Course:</label>
-          <select name="course" id="course-select" required>
-            <option value="">-- Select Course --</option>
-            <?php foreach ($courses as $c): ?>
-              <option value="<?= $c['CourseID'] ?>" data-dept="<?= $c['DepartmentID'] ?>" <?= old('course') == $c['CourseID'] ? 'selected' : '' ?>>
-                <?= htmlspecialchars($c['Course_Code'] . ' - ' . $c['Course_Name']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Phone Number:</label>
-          <input type="text" name="phone" value="<?= old('phone') ?>">
-        </div>
-        <div class="form-group">
-          <label>Class:</label>
-          <select name="class" id="class-select" required>
-            <option value="">-- Select Class --</option>
-            <?php foreach ($classes as $cl): ?>
-              <option value="<?= $cl['ClassID'] ?>" data-course="<?= $cl['CourseID'] ?>" data-sem="<?= $cl['Semester'] ?>" <?= old('class') == $cl['ClassID'] ? 'selected' : '' ?>>
-                <?= htmlspecialchars($cl['Class_Name'] . ' (Sem ' . $cl['Semester'] . ')') ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-      </div>
-
-      <button class="register-button" type="submit">REGISTER</button>
-    </form>
-  </div>
-</div>
-
-<div style="clear:both;"></div>
-
-<script>
+    </div>
+</div> <script>
 // Filter courses and classes dynamically
 document.addEventListener('DOMContentLoaded', function(){
   const deptSel = document.getElementById('department-select');
