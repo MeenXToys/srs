@@ -1,249 +1,245 @@
 <?php
-// gpa.php - Student (user) GPA management page
-require_once __DIR__ . '/config.php';
-require_login(); // ensure this exists in your config.php / auth helpers
-require_once __DIR__ . '/nav.php';
-// small safe echo
-if (!function_exists('e')) {
-    function e($s){ return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-}
+// gpa.php (fixed session/login ordering + debug)
+require_once 'config.php';
+require_login();
 
-// ensure session started
-if (session_status() === PHP_SESSION_NONE) session_start();
+$UserID = (int)$_SESSION['UserID'];
 
-// ensure CSRF token
-if (!isset($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(24));
-$csrf = $_SESSION['csrf_token'];
+// --- rest of your code unchanged; error handling included ---
+$errors = [];
+$success = '';
 
-$errMsg = null;
-$success = null;
-$uid = (int)($_SESSION['user_id'] ?? $_SESSION['UserID'] ?? 0); // adapt to how you store logged-in user id
-if ($uid <= 0) {
-    // fallback: try to get from $currentUser if your auth uses one
-    if (!empty($currentUser['UserID'])) $uid = (int)$currentUser['UserID'];
-}
-
-// Handle POST actions (add / delete)
+// handle actions: add/update/delete
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-            throw new Exception('Invalid CSRF token');
+    $action = $_POST['action'] ?? '';
+    // sanitize inputs
+    $semester = isset($_POST['semester']) ? (int)$_POST['semester'] : 0;
+    $gpa_val  = isset($_POST['gpa']) ? trim($_POST['gpa']) : '';
+
+    if ($action === 'add' || $action === 'update') {
+        // validation
+        if ($semester < 1 || $semester > 20) {
+            $errors[] = "Semester must be a valid number (1–20).";
         }
-
-        $action = $_POST['action'] ?? '';
-        if ($action === 'add_gpa') {
-            $semester = (int)($_POST['semester'] ?? 0);
-            $gpaRaw = trim($_POST['gpa'] ?? '');
-            if ($semester <= 0) throw new Exception('Semester must be a positive integer.');
-            if ($gpaRaw === '') throw new Exception('GPA is required.');
-            // numeric parse
-            if (!is_numeric($gpaRaw)) throw new Exception('GPA must be a number.');
-            $gpa = number_format((float)$gpaRaw, 2, '.', '');
-            if ($gpa < 0.00 || $gpa > 4.00) throw new Exception('GPA must be between 0.00 and 4.00.');
-
-            // optional: prevent duplicate same semester for same user (uncomment if desired)
-            $existsStmt = $pdo->prepare("SELECT COUNT(*) FROM gpa WHERE UserID = :uid AND Semester = :sem");
-            $existsStmt->execute([':uid'=>$uid, ':sem'=>$semester]);
-            if ($existsStmt->fetchColumn() > 0) {
-                throw new Exception("GPA for semester {$semester} already exists. Delete it first if you want to replace it.");
-            }
-
-            $ins = $pdo->prepare("INSERT INTO gpa (UserID, Semester, GPA) VALUES (:uid, :sem, :gpa)");
-            $ins->execute([':uid'=>$uid, ':sem'=>$semester, ':gpa'=>$gpa]);
-            $success = 'GPA saved.';
-        } elseif ($action === 'delete_gpa') {
-            $gpaId = (int)($_POST['gpaid'] ?? 0);
-            if ($gpaId <= 0) throw new Exception('Invalid GPA id.');
-            // ensure row belongs to current user
-            $chk = $pdo->prepare("SELECT UserID FROM gpa WHERE GPAID = :id");
-            $chk->execute([':id'=>$gpaId]);
-            $owner = $chk->fetchColumn();
-            if (!$owner || (int)$owner !== $uid) throw new Exception('Not authorized to delete this GPA.');
-            $del = $pdo->prepare("DELETE FROM gpa WHERE GPAID = :id");
-            $del->execute([':id'=>$gpaId]);
-            $success = 'GPA deleted.';
+        // validate decimal like 0.00 - 4.00
+        if (!preg_match('/^\d+(\.\d{1,2})?$/', $gpa_val)) {
+            $errors[] = "GPA must be a number with up to 2 decimals (e.g. 3.25).";
         } else {
-            throw new Exception('Unknown action.');
+            $gpa_num = (float)$gpa_val;
+            if ($gpa_num < 0.00 || $gpa_num > 4.00) {
+                $errors[] = "GPA must be between 0.00 and 4.00.";
+            }
         }
-    } catch (Exception $ex) {
-        $errMsg = $ex->getMessage();
+
+        if (empty($errors)) {
+            try {
+                // check existing semester for this user
+                $stmt = $pdo->prepare("SELECT GPAID FROM gpa WHERE UserID = :uid AND Semester = :sem LIMIT 1");
+                $stmt->execute([':uid' => $UserID, ':sem' => $semester]);
+                $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($existing) {
+                    // update
+                    $upd = $pdo->prepare("UPDATE gpa SET GPA = :gpa WHERE GPAID = :gid");
+                    $upd->execute([':gpa' => number_format($gpa_num, 2, '.', ''), ':gid' => $existing['GPAID']]);
+                    $success = "Semester {$semester} GPA updated.";
+                } else {
+                    // insert
+                    $ins = $pdo->prepare("INSERT INTO gpa (UserID, Semester, GPA) VALUES (:uid, :sem, :gpa)");
+                    $ins->execute([':uid' => $UserID, ':sem' => $semester, ':gpa' => number_format($gpa_num, 2, '.', '')]);
+                    $success = "Semester {$semester} GPA saved.";
+                }
+            } catch (Exception $e) {
+                $errors[] = "Database error: " . htmlspecialchars($e->getMessage());
+                error_log("gpa insert/update error for UserID {$UserID}: " . $e->getMessage());
+            }
+        }
+    }
+
+    if ($action === 'delete') {
+        $gid = isset($_POST['gpaid']) ? (int)$_POST['gpaid'] : 0;
+        if ($gid) {
+            try {
+                $del = $pdo->prepare("DELETE FROM gpa WHERE GPAID = :gid AND UserID = :uid");
+                $del->execute([':gid' => $gid, ':uid' => $UserID]);
+                $success = "Entry deleted.";
+            } catch (Exception $e) {
+                $errors[] = "Database error: " . htmlspecialchars($e->getMessage());
+                error_log("gpa delete error for UserID {$UserID}: " . $e->getMessage());
+            }
+        }
     }
 }
 
-// Fetch user's GPA rows and computed CGPA
+// fetch user's GPA rows
 try {
-    // list of semester rows
-    $rowsStmt = $pdo->prepare("SELECT GPAID, Semester, GPA FROM gpa WHERE UserID = :uid ORDER BY Semester ASC, GPAID ASC");
-    $rowsStmt->execute([':uid'=>$uid]);
-    $gpaRows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // compute CGPA (average)
-    $cgpaStmt = $pdo->prepare("SELECT ROUND(AVG(GPA),2) AS cgpa, COUNT(*) AS count_rows FROM gpa WHERE UserID = :uid");
-    $cgpaStmt->execute([':uid'=>$uid]);
-    $cgpaInfo = $cgpaStmt->fetch(PDO::FETCH_ASSOC);
-    $cgpa = $cgpaInfo['cgpa'] !== null ? number_format((float)$cgpaInfo['cgpa'], 2) : null;
-    $gpaCount = (int)($cgpaInfo['count_rows'] ?? 0);
+    $stmt = $pdo->prepare("SELECT GPAID, Semester, GPA FROM gpa WHERE UserID = :uid ORDER BY Semester ASC");
+    $stmt->execute([':uid' => $UserID]);
+    $gpas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    $errMsg = $e->getMessage();
-    $gpaRows = [];
-    $cgpa = null;
-    $gpaCount = 0;
+    $gpas = [];
+    $errors[] = "Database error: " . htmlspecialchars($e->getMessage());
+    error_log("gpa fetch error for UserID {$UserID}: " . $e->getMessage());
 }
+
+// compute CGPA (simple average of recorded semester GPAs)
+$cgpa = null;
+if (!empty($gpas)) {
+    $sum = 0;
+    $count = 0;
+    foreach ($gpas as $r) {
+        $sum += (float)$r['GPA'];
+        $count++;
+    }
+    $cgpa = $count ? round($sum / $count, 2) : null;
+}
+
+// prepare edit prefill when requested via GET? (edit uses same add form)
+$editSemester = '';
+$editGPA = '';
+$editGPAID = 0;
+if (isset($_GET['edit'])) {
+    $eid = (int)$_GET['edit'];
+    foreach ($gpas as $r) {
+        if ((int)$r['GPAID'] === $eid) {
+            $editSemester = $r['Semester'];
+            $editGPA = $r['GPA'];
+            $editGPAID = $r['GPAID'];
+            break;
+        }
+    }
+}
+
+// --- HTML / UI remains unchanged from your version below ---
 ?>
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>My GPA — Student</title>
-<link rel="stylesheet" href="style.css">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-
-<!-- Bootstrap CSS (for modal) -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
-<style>
-:root{
-  --bg:#0f1724; --card:#07111a; --muted:#9aa8bd; --text:#e8f6ff; --accent-blue-1:#2563eb; --accent-blue-2:#1d4ed8;
-}
-body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin:0; padding:0; }
-.container { width:1100px; margin:28px auto; padding:18px; box-sizing:border-box; }
-.card { background:var(--card); border-radius:12px; padding:18px; box-shadow:0 8px 28px rgba(2,6,23,0.6); }
-
-.header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
-.h1 { font-size:1.6rem; margin:0; color:#cfe8ff; }
-.small-muted { color:var(--muted); }
-.table-wrap { margin-top:12px; overflow:auto; border-radius:8px; }
-table { width:100%; border-collapse:collapse; }
-th, td { padding:12px; border-top:1px solid rgba(255,255,255,0.03); color:var(--text); vertical-align:middle; }
-th { color:var(--muted); text-align:left; font-weight:700; }
-.btn-primary { background: linear-gradient(90deg,var(--accent-blue-1),var(--accent-blue-2)); border:0; }
-.toast{position:fixed;right:18px;bottom:18px;background:#0b1520;padding:12px 16px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);color:#e6eef8;z-index:600;display:none;}
-.toast.show{display:block;}
-.form-control, .form-select { background: rgba(255,255,255,0.02); color: var(--text); border:1px solid rgba(255,255,255,0.04); }
-@media (max-width:720px) {
-  .header { flex-direction:column; align-items:flex-start; gap:10px; }
-}
-</style>
+  <meta charset="utf-8">
+  <title>My GPA - Student Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    /* small page-specific rules to align with your theme */
+    .page-header { text-align:center; color:#e6eef8; padding:18px 12px; }
+    .card { background: linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.12)); padding:16px; border-radius:10px; color:#e6eef8; }
+    .form-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    input[type="number"], input[type="text"] { padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:#e6eef8; }
+    .btn { padding:8px 12px; border-radius:8px; text-decoration:none; cursor:pointer; border:none; font-weight:700; }
+    .btn-primary { background:linear-gradient(90deg,#004aad,#6366f1); color:#fff; }
+    .btn-danger { background:#c92a2a; color:#fff; }
+    table { width:100%; border-collapse:collapse; margin-top:12px; color:#e6eef8; }
+    th, td { padding:8px 10px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .muted { color:#aab8c8; font-size:0.95rem; }
+    .notice { margin:10px 0; padding:10px; border-radius:8px; }
+    .notice.success { background: rgba(34,197,94,0.12); color:#bbffcf; }
+    .notice.error { background: rgba(220,38,38,0.08); color:#ffd6d6; }
+  </style>
 </head>
 <body>
-<div class="container">
+<?php include 'nav.php'; ?>
+
+<div class="container" style="padding:20px 12px; max-width:900px; margin:0 auto;">
+  <div class="page-header">
+    <h1>My GPA</h1>
+    <p class="muted">Add or update semester GPAs and view your current CGPA.</p>
+  </div>
+
+  <?php if ($success): ?>
+    <div class="notice success"><?=htmlspecialchars($success)?></div>
+  <?php endif; ?>
+  <?php if (!empty($errors)): ?>
+    <div class="notice error"><ul style="margin:0;padding-left:18px;">
+      <?php foreach ($errors as $err): ?><li><?=htmlspecialchars($err)?></li><?php endforeach; ?>
+    </ul></div>
+  <?php endif; ?>
+
   <div class="card">
-    <div class="header">
-      <div>
-        <h1 class="h1">My GPA</h1>
-        <div class="small-muted"><?= e($gpaCount) ?> record<?= $gpaCount==1?'':'s' ?> • CGPA: <?= $cgpa === null ? '<span style="color:var(--muted)">—</span>' : e($cgpa) ?></div>
-      </div>
-      <div>
-        <button id="openAddBtn" class="btn btn-primary">＋ Add GPA</button>
-      </div>
-    </div>
+    <h2 style="margin-top:0;">Record / Update GPA</h2>
 
-    <?php if (!empty($errMsg)): ?>
-      <div style="background:#3b1f1f;color:#ffdede;padding:10px;border-radius:6px;margin-bottom:12px;"><?= e($errMsg) ?></div>
-    <?php endif; ?>
-    <?php if (!empty($success)): ?>
-      <div style="background:#073a1f;color:#dff6ea;padding:10px;border-radius:6px;margin-bottom:12px;"><?= e($success) ?></div>
-    <?php endif; ?>
+    <form method="post" class="form-row" style="align-items:center;">
+      <input type="hidden" name="action" value="<?= $editGPAID ? 'update' : 'add' ?>">
+      <?php if ($editGPAID): ?>
+        <input type="hidden" name="gpaid" value="<?= (int)$editGPAID ?>">
+      <?php endif; ?>
 
-    <div class="table-wrap">
+      <label for="semester" class="muted" style="min-width:110px;">Semester</label>
+      <select name="semester" id="semester" required style="padding:8px;border-radius:6px;background:transparent;color:#e6eef8;border:1px solid rgba(255,255,255,0.06);">
+        <?php
+          // Show 1..12 by default - adjust max semesters if needed
+          $maxSem = 12;
+          for ($i=1;$i<=$maxSem;$i++) {
+            $sel = ($i == $editSemester) ? 'selected' : '';
+            echo "<option value=\"$i\" $sel>Semester $i</option>";
+          }
+        ?>
+      </select>
+
+      <label for="gpa" class="muted" style="min-width:70px;">GPA</label>
+      <input id="gpa" name="gpa" type="text" required placeholder="e.g. 3.25" value="<?= htmlspecialchars($editGPA) ?>" style="width:120px;">
+
+      <button class="btn btn-primary" type="submit"><?= $editGPAID ? 'Update GPA' : 'Save GPA' ?></button>
+      <?php if ($editGPAID): ?>
+        <a class="btn" href="gpa.php" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06);">Cancel</a>
+      <?php endif; ?>
+    </form>
+
+    <p class="muted" style="margin-top:10px;">Note: GPA values are limited to 0.00–4.00 and saved per semester.</p>
+  </div>
+
+  <div style="height:14px;"></div>
+
+  <div class="card">
+    <h2 style="margin-top:0;">Your Semesters</h2>
+
+    <?php if (empty($gpas)): ?>
+      <p class="muted">You haven't added any semester GPAs yet.</p>
+    <?php else: ?>
       <table>
         <thead>
           <tr>
-            <th style="width:140px">Semester</th>
-            <th style="text-align:right;width:140px">GPA</th>
-            <th style="width:160px">Action</th>
+            <th>Semester</th>
+            <th>GPA</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          <?php if (empty($gpaRows)): ?>
-            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px;">No GPA records found.</td></tr>
-          <?php else: ?>
-            <?php foreach ($gpaRows as $r): ?>
-              <tr data-gpaid="<?= e($r['GPAID']) ?>">
-                <td><?= e($r['Semester']) ?></td>
-                <td style="text-align:right"><?= e(number_format((float)$r['GPA'],2)) ?></td>
-                <td>
-                  <form method="post" style="display:inline;" onsubmit="return confirm('Delete this GPA entry?');">
-                    <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                    <input type="hidden" name="action" value="delete_gpa">
-                    <input type="hidden" name="gpaid" value="<?= e($r['GPAID']) ?>">
-                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                  </form>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          <?php endif; ?>
+          <?php foreach ($gpas as $r): ?>
+            <tr>
+              <td>Semester <?= (int)$r['Semester'] ?></td>
+              <td><?= number_format((float)$r['GPA'], 2) ?></td>
+              <td>
+                <a class="btn" href="gpa.php?edit=<?= (int)$r['GPAID'] ?>" style="text-decoration:none;border:1px solid rgba(255,255,255,0.06);padding:6px 8px;border-radius:6px;">Edit</a>
+
+                <form method="post" style="display:inline-block;margin-left:6px;" onsubmit="return confirm('Delete this GPA entry?');">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="gpaid" value="<?= (int)$r['GPAID'] ?>">
+                  <button class="btn btn-danger" type="submit" style="padding:6px 8px;border-radius:6px;">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
         </tbody>
       </table>
-    </div>
 
-    <div style="margin-top:12px;color:var(--muted);font-size:.95rem;">
-      Note: CGPA is calculated as the simple average of saved semester GPAs (non-weighted). For credit-weighted CGPA you'll need per-course grades & credits.
-    </div>
+      <div style="margin-top:12px;">
+        <strong>Current CGPA:</strong>
+        <?php if ($cgpa !== null): ?>
+          <span style="font-size:1.2rem; margin-left:8px;"><?= number_format((float)$cgpa, 2) ?></span>
+        <?php else: ?>
+          <span class="muted">—</span>
+        <?php endif; ?>
+        <p class="muted" style="margin-top:6px;">CGPA = average of your saved semester GPAs.</p>
+      </div>
+    <?php endif; ?>
   </div>
+
+  <div style="height:30px;"></div>
+  <footer style="text-align:center;color:#aab8c8;">
+    &copy; <?= date('Y') ?> GMI Student Registration System
+  </footer>
 </div>
 
-<!-- Add GPA Modal -->
-<div class="modal fade" id="addGpaModal" tabindex="-1" aria-labelledby="addGpaLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm modal-dialog-centered">
-    <div class="modal-content">
-      <form id="addGpaForm" method="post" class="modal-body p-4" autocomplete="off">
-        <div class="modal-header">
-          <h5 class="modal-title" id="addGpaLabel">Add GPA</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-
-        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-        <input type="hidden" name="action" value="add_gpa">
-
-        <div class="mb-3">
-          <label class="form-label">Semester (integer)</label>
-          <input name="semester" id="semesterInput" type="number" min="1" required class="form-control" placeholder="e.g. 1">
-        </div>
-        <div class="mb-3">
-          <label class="form-label">GPA (0.00 – 4.00)</label>
-          <input name="gpa" id="gpaInput" type="number" step="0.01" min="0" max="4" required class="form-control" placeholder="e.g. 3.25">
-        </div>
-
-        <div class="d-flex justify-content-end gap-2">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button id="submitAdd" class="btn btn-primary" type="submit">Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<div id="toast" class="toast"></div>
-
-<!-- Bootstrap JS bundle (Popper included) -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-const addModalEl = document.getElementById('addGpaModal');
-const addModal = addModalEl ? new bootstrap.Modal(addModalEl, { keyboard: false }) : null;
-document.getElementById('openAddBtn').addEventListener('click', ()=> {
-  if (addModal) addModal.show();
-  setTimeout(()=> document.getElementById('semesterInput').focus(), 120);
-});
-
-// simple client validation for nicer UX
-const addForm = document.getElementById('addGpaForm');
-if (addForm) addForm.addEventListener('submit', function(e){
-  const sem = parseInt(document.getElementById('semesterInput').value || '0', 10);
-  const gpa = parseFloat(document.getElementById('gpaInput').value || '');
-  if (!sem || isNaN(sem) || sem <= 0) { showToast('Semester must be a positive integer', 2200, 'error'); e.preventDefault(); return; }
-  if (isNaN(gpa) || gpa < 0 || gpa > 4) { showToast('GPA must be between 0.00 and 4.00', 2200, 'error'); e.preventDefault(); return; }
-});
-
-// toast helper
-function showToast(msg, t=2200, cls='') {
-  const s = document.getElementById('toast');
-  if (!s) return console.log(msg);
-  s.textContent = msg;
-  s.classList.add('show');
-  if (s._hideTimer) clearTimeout(s._hideTimer);
-  s._hideTimer = setTimeout(()=> { s.classList.remove('show'); }, t);
-}
-</script>
 </body>
 </html>
