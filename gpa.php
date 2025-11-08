@@ -138,7 +138,7 @@ try {
 
 <head>
   <meta charset="utf-8">
-  <title>My GPA — Student</title>
+  <title>Calculate GPA</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -310,6 +310,7 @@ try {
       margin: 0; /* Reset default margins */
     }
     .btn-edit {
+      width: 100px;
       margin-right: 5px; /* Spacing between Edit and Delete */
     }
 
@@ -421,9 +422,8 @@ try {
                   <td><?= ++$count ?></td>
                   <td class="semester-col"><?= e($r['Semester']) ?></td>
                   <td class="gpa-col"><?= e(number_format((float) $r['GPA'], 2)) ?></td>
-                  <td>
+                  <td class="action-col" style="text-align:center;">
                         <button type="button" class="btn btn-sm btn-edit openEditBtn">Edit</button>
-
                     <form method="post" style="display:inline-block;" onsubmit="return confirm('Are you sure you want to delete this GPA entry?');">
                       <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                       <input type="hidden" name="action" value="delete_gpa">
