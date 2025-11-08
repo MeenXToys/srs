@@ -1,21 +1,24 @@
 <?php
+// PHP Login Logic (login.php)
+
+// Require the configuration file (assumed to handle session start and PDO connection)
 require_once 'config.php';
 
 // use the PDO connection from config.php
 global $pdo;
 
-$err = '';
-$email_old = ''; // Untuk mengisi semula e-mel jika log masuk gagal
+$err = ''; // Variable to store error messages
+$email_old = ''; // To repopulate the email field if login fails
 
-// Pengekalan Logik Log Masuk Asal
+// Main Login Logic Block
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? ''); 
     $password = $_POST['password'] ?? '';
-    $email_old = htmlspecialchars($email); // Simpan input email
+    $email_old = htmlspecialchars($email); // Save email input for repopulation
 
-    // Logik saringan E-mel dan Kata Laluan 
+    // Email and Password validation logic
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
-        $err = "Sila masukkan E-mel dan Kata Laluan yang sah.";
+        $err = "Please enter a valid Email and Password."; // Sila masukkan E-mel dan Kata Laluan yang sah.
     } else {
         // prepare query
         $stmt = $pdo->prepare("
@@ -33,8 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
-        // Verifikasi Kata Laluan
+        // Password Verification
         if ($user && password_verify($password, $user['Password_Hash'])) {
+            // Set session variables for successful login
             $_SESSION['user'] = [
                 'UserID' => $user['UserID'],
                 'Email' => $user['Email'],
@@ -54,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             exit;
         } else {
-            $err = "Kredensial tidak sah. E-mel atau Kata Laluan salah.";
+            $err = "Invalid credentials. Incorrect Email or Password."; // Kredensial tidak sah. E-mel atau Kata Laluan salah.
         }
     }
 }
@@ -243,8 +247,8 @@ body {
     margin-bottom: 20px;
     border: none;
     border-radius: 6px;
-    background-color: #e0e0e0; /* Input background terang */
-    color: black;
+    background-color: rgba(255, 255, 255, 0.06); /* Input background terang */
+    color: whitesmoke;
     font-size: 1em;
     box-sizing: border-box;
     transition: box-shadow 0.3s ease;
@@ -261,8 +265,8 @@ body {
     padding: 15px;
     border: none;
     border-radius: 6px;
-    background-color: var(--accent-blue);
-    color: white;
+    background-color: #555555;
+    color: #FFFFFF;
     font-size: 1.1em;
     cursor: pointer;
     font-weight: bold;
@@ -392,7 +396,7 @@ body {
           <a href="index.php">Main Menu</a>
           <a href="registration.php">Register</a>
           <a href="login.php" class="current-page">Log In</a>
-          <a href="#" class="contact-button">Contact Us</a>
+          <a href="contactus.php" class="contact-button">Contact Us</a>
         </div>
       </div>
 
@@ -403,7 +407,7 @@ body {
         // Mesej Pendaftaran Berjaya (Jika datang dari registration.php?registered=1)
         if (isset($_GET['registered']) && $_GET['registered'] == 1): ?>
           <div class="status-message success">
-            <i class="fas fa-check-circle"></i> Succesfull Login! Please Log In.
+            <i class="fas fa-check-circle"></i> Succesfull Register! Please Log In.
           </div>
         <?php endif; ?>
 

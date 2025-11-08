@@ -56,7 +56,8 @@ $recent = [
 
 <head>
   <meta charset="utf-8">
-  <title>Student Dashboard — GMI</title>
+  <title>Student Dashboard</title>
+  <link rel="icon" href="img/favicon.png" type="image/png">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -515,10 +516,12 @@ $recent = [
         </div>
 
         <div class="side-stats">
-          <a href="gpa.php" class="tile" style="text-decoration:none;">
-  <div class="num"><?= $gpa > 0 ? number_format($gpa, 2) : 'N/A' ?></div>
-  <div class="lbl">Current CGPA</div>
-</a>
+          <div class="side-stat">
+            <a href="gpa.php" class="lbl" style="text-decoration:none;">
+            <div class="num"><?= $gpa > 0 ? number_format($gpa, 2) : 'N/A' ?></div>
+            <div class="lbl">Current CGPA</div>
+            </a>
+          </div>
           <div class="side-stat">
             <div class="num"><?= (int) $credits ?></div>
             <div class="lbl">Credits</div>
@@ -554,10 +557,10 @@ $recent = [
             <div class="num"><?= (int) $credits ?></div>
             <div class="lbl">Completed Credits</div>
           </div>
-<a href="gpa.php" class="tile" style="text-decoration:none;">
-  <div class="num"><?= $gpa > 0 ? number_format($gpa, 2) : 'N/A' ?></div>
-  <div class="lbl">Current CGPA</div>
-</a>
+            <a href="gpa.php" class="tile" style="text-decoration:none;">
+            <div class="num"><?= $gpa > 0 ? number_format($gpa, 2) : 'N/A' ?></div>
+            <div class="lbl">Current CGPA</div>
+            </a>
           <div class="tile">
             <div class="num"><?= (int) $attendance ?>%</div>
             <div class="lbl">Attendance</div>

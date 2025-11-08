@@ -120,6 +120,8 @@ function old($k, $d = '') { global $old; return htmlspecialchars($old[$k] ?? $d,
         flex-direction: column;
     }
 
+    .right-section {
+      padding-top: 5px !important;  
     /* 2. Kontena Baru untuk bahagian Kiri dan Kanan */
     .main-content-wrapper {
         display: flex; /* KUNCI: Aktifkan Flexbox */
