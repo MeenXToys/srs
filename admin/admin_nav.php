@@ -114,7 +114,7 @@ $avatarDebug = [
 ];
 ?>
 <link rel="stylesheet" href="../style.css">
-
+<link rel="icon" href="../img/favicon.png" type="image/png">
 <!-- ✅ Topbar -->
 <header class="admin-topbar-compact">
   <div class="top-left">
