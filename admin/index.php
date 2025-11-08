@@ -1,375 +1,540 @@
 <?php
-// admin/index.php (updated: improved layout, cards stretch to fill empty space)
+// admin/index.php (DIKEMASKINI: Reka bentuk "Pro" berdasarkan imej rujukan)
 require_once __DIR__ . '/../config.php';
 require_admin();
-require_once __DIR__ . '/admin_nav.php';
+// admin_nav.php menyediakan $pdo, $displayName, dan memuatkan style.css
+require_once __DIR__ . '/admin_nav.php'; 
 
 if (!function_exists('e')) {
     function e($s) { return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 }
 
-// Safe helper to run single-value count queries
+/* * ===================================================
+ * HELPER FUNCTIONS
+ * ===================================================
+ */
 function safe_count($pdo, $sql, $params = []) {
     try {
-        $stmt = $pdo->prepare($sql);
-        foreach ($params as $k => $v) $stmt->bindValue($k, $v);
-        $stmt->execute();
+        $stmt = $pdo->prepare($sql); $stmt->execute($params);
         return (int)$stmt->fetchColumn();
-    } catch (Exception $e) {
-        return 0;
-    }
+    } catch (Exception $e) { return 0; }
+}
+function safe_scalar($pdo, $sql, $params = [], $default = 'N/A') {
+     try {
+        $stmt = $pdo->prepare($sql); $stmt->execute($params);
+        $val = $stmt->fetchColumn();
+        return ($val !== false && $val !== null) ? $val : $default;
+    } catch (Exception $e) { return $default; }
+}
+function safe_query($pdo, $sql, $params = []) {
+    try {
+        $stmt = $pdo->prepare($sql); $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) { return []; }
 }
 
-// Fetch totals
-$totalClasses  = safe_count($pdo, "SELECT COUNT(*) FROM `class`");
-$totalCourses  = safe_count($pdo, "SELECT COUNT(*) FROM `course`");
-$totalDepts    = safe_count($pdo, "SELECT COUNT(*) FROM `department`");
-$totalStudents = safe_count($pdo, "SELECT COUNT(*) FROM `student`");
+/* * ===================================================
+ * PENGUMPULAN DATA DASHBOARD
+ * ===================================================
+ */
 
-// Recent classes (join course & department if available)
-$recentClasses = [];
-try {
-    $stmt = $pdo->prepare("
-        SELECT
-          c.ClassID,
-          c.Class_Name,
-          c.Semester,
-          co.Course_Name AS course_name,
-          d.Dept_Name AS dept_name,
-          c.UpdatedAt
-        FROM `class` c
-        LEFT JOIN `course` co ON co.CourseID = c.CourseID
-        LEFT JOIN `department` d ON d.DepartmentID = co.DepartmentID
-        ORDER BY COALESCE(c.UpdatedAt, c.ClassID) DESC
-        LIMIT 8
-    ");
-    $stmt->execute();
-    $recentClasses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $recentClasses = [];
-}
+// 1. KAD STATISTIK UTAMA (KPIs)
+$totalStudents = safe_count($pdo, "SELECT COUNT(*) FROM student WHERE deleted_at IS NULL");
+$totalClasses  = safe_count($pdo, "SELECT COUNT(*) FROM class WHERE deleted_at IS NULL");
+$totalCourses  = safe_count($pdo, "SELECT COUNT(*) FROM course WHERE deleted_at IS NULL");
+$totalDepts    = safe_count($pdo, "SELECT COUNT(*) FROM department WHERE deleted_at IS NULL");
 
-// Recent courses
-$recentCourses = [];
-try {
-    $stmt = $pdo->prepare("SELECT CourseID, Course_Name FROM `course` ORDER BY CourseID DESC LIMIT 8");
-    $stmt->execute();
-    $recentCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $recentCourses = [];
-}
+// Tetapkan "Goal" (Matlamat) untuk progress bar
+$studentGoal = 500;
+$classGoal   = 50;
+$courseGoal  = 100;
+$deptGoal    = 10; 
 
-// Faux small activity arrays for spark charts (replace with real metrics later if needed)
-$activity = [
-    'classes'  => [2,3,5,4,6,7,8,9,7,8,10],
-    'students' => [1,2,2,4,4,6,7,9,8,9,11],
-];
+// Kira peratusan untuk progress bar
+$studentPercent = ($studentGoal > 0) ? round(($totalStudents / $studentGoal) * 100) : 0;
+$classPercent   = ($classGoal > 0) ? round(($totalClasses / $classGoal) * 100) : 0;
+$coursePercent  = ($courseGoal > 0) ? round(($totalCourses / $courseGoal) * 100) : 0;
+$deptPercent    = ($deptGoal > 0) ? round(($totalDepts / $deptGoal) * 100) : 0;
 
-?><!doctype html>
+
+// 2. CARTA GARISAN (Student Activity)
+// (Data diambil dari jadual user kerana student tiada CreatedAt)
+$studentTrendData = safe_query($pdo, "
+    SELECT DATE_FORMAT(CreatedAt, '%Y-%m') AS ym, COUNT(*) AS count
+    FROM user
+    WHERE Role = 'Student' AND CreatedAt IS NOT NULL
+    GROUP BY ym
+    ORDER BY ym DESC
+    LIMIT 12
+");
+$studentTrendLabels = json_encode(array_reverse(array_column($studentTrendData, 'ym')));
+$studentTrendValues = json_encode(array_reverse(array_column($studentTrendData, 'count')));
+
+
+// 3. CARTA DONUT (Course Statistic)
+$deptBreakdown = safe_query($pdo, "
+    SELECT d.Dept_Name AS label, COUNT(c.CourseID) AS value
+    FROM department d
+    LEFT JOIN course c ON c.DepartmentID = d.DepartmentID AND c.deleted_at IS NULL
+    WHERE d.deleted_at IS NULL
+    GROUP BY d.Dept_Name
+    ORDER BY value DESC
+    LIMIT 6
+");
+$jsDeptLabels = json_encode(array_column($deptBreakdown, 'label'));
+$jsDeptValues = json_encode(array_column($deptBreakdown, 'value'));
+
+
+// 4. SENARAI "RECENT"
+$recentStudents = safe_query($pdo, "
+    SELECT s.UserID, s.StudentID, u.Display_Name, u.Email, u.Profile_Image
+    FROM student s
+    JOIN user u ON s.UserID = u.UserID
+    WHERE s.deleted_at IS NULL
+    ORDER BY s.UserID DESC
+    LIMIT 5
+");
+
+$recentCourses = safe_query($pdo, "
+    SELECT CourseID, Course_Name 
+    FROM course 
+    WHERE deleted_at IS NULL 
+    ORDER BY CourseID DESC 
+    LIMIT 5
+");
+
+
+// 5. Personalization (Nama dari admin_nav.php)
+$firstName = explode(' ', $displayName ?? 'Admin')[0];
+
+?>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Admin Dashboard</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    /* ---------- Theme & layout ---------- */
-    :root{
-      --bg: #071025;
-      --panel: linear-gradient(180deg,#07111a 0%, #071620 100%);
-      --muted: #97a6bd;
-      --text: #e7f3ff;
-      --glass: rgba(255,255,255,0.02);
-      --accent1: #7c3aed;
-      --accent2: #5b21b6;
-      --ok: #10b981;
-      --danger: #ef4444;
-    }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
-    main.admin-main{min-height:100vh;padding:18px 22px;}
-    /* make content wider so cards fit nicely but still centered */
-    .content{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:1fr;gap:18px;padding-bottom:36px;}
+    <meta charset="utf-8">
+    <title>Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 
-    /* header */
-    .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    h1.page-title{margin:0;font-size:1.5rem;letter-spacing:0.2px}
-    p.subtitle{margin:4px 0 0 0;color:var(--muted);font-size:.95rem;max-width:900px}
+    <style>
+        :root {
+            /* Warna tambahan dari style.css anda */
+            --accent-purple: #7c3aed;
+            --accent-pink: #D946EF;
+            --accent-green: #10b981;
+            --accent-blue: var(--accent, #38bdf8);
+            --accent-red: #f87171;
+            --accent-orange: #fb923c;
+            
+            /* Menggelapkan panel sedikit */
+            --panel-pro: linear-gradient(180deg, #101824 0%, #0A0F1A 100%);
+        }
+        
+        /* Grid utama dashboard */
+        .admin-pro-grid {
+            display: grid;
+            grid-template-columns: 2.5fr 1fr; /* Lajur utama & sidebar */
+            gap: 20px;
+        }
+        
+        /* Grid untuk kad statistik */
+        .admin-pro-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* 4 kad sebaris */
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        /* Reka bentuk kad statistik (seperti imej rujukan) */
+        .admin-pro-stat-card {
+            background: var(--panel-pro, #1b2330);
+            border-radius: var(--card-radius, 12px);
+            padding: 20px 24px;
+            border: 1px solid var(--glass, rgba(255,255,255,0.04));
+            box-shadow: var(--shadow-1, 0 6px 18px rgba(0,0,0,0.35));
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 16px; /* Jarak antara ikon, teks, dan bar */
+        }
+        .admin-pro-stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .stat-card-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .stat-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .stat-card-icon svg {
+            width: 24px;
+            height: 24px;
+            color: #fff;
+        }
+        /* Latar belakang ikon berwarna */
+        .stat-card-icon.bg-purple { background: var(--accent-purple); }
+        .stat-card-icon.bg-blue   { background: var(--accent-blue); }
+        .stat-card-icon.bg-green  { background: var(--accent-green); }
+        .stat-card-icon.bg-pink   { background: var(--accent-pink); }
+        
+        .stat-card-info .label {
+            font-size: 0.9rem;
+            color: var(--muted, #e0e0e0);
+            margin-bottom: 4px;
+        }
+        .stat-card-info .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.1;
+        }
+        
+        /* Bar Kemajuan (Progress Bar) dalam kad */
+        .stat-card-progress {
+            background: var(--glass);
+            border-radius: 99px;
+            height: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .stat-card-progress-inner {
+            height: 100%;
+            border-radius: 99px;
+            transition: width 0.5s ease;
+        }
+        /* Warna bar kemajuan */
+        .stat-card-progress-inner.bg-purple { background: var(--accent-purple); box-shadow: 0 0 10px var(--accent-purple); }
+        .stat-card-progress-inner.bg-blue   { background: var(--accent-blue); box-shadow: 0 0 10px var(--accent-blue); }
+        .stat-card-progress-inner.bg-green  { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+        .stat-card-progress-inner.bg-pink   { background: var(--accent-pink); box-shadow: 0 0 10px var(--accent-pink); }
 
-    .actions-row{display:flex;gap:10px;align-items:center}
+        /* Senarai Aktiviti (menggunakan .card dari style.css) */
+        .admin-pro-list-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .admin-pro-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--glass, rgba(255,255,255,0.04));
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .admin-pro-list-item:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.1);
+        }
+        .list-item-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .list-item-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--panel-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            overflow: hidden;
+        }
+        .list-item-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .list-item-info .name { font-weight: 600; }
+        .list-item-info .meta { font-size: 0.9rem; color: var(--muted); }
+        
+        /* Penyesuaian Carta */
+        .chart-container {
+            height: 300px; /* Tetapkan ketinggian untuk carta */
+            margin-top: 16px;
+        }
 
-    /* stats wrapper: reduced height, centered content */
-    .stats-hero{background:linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.06)); border-radius:16px; padding:18px; border:1px solid rgba(255,255,255,0.02); box-shadow: inset 0 -30px 60px rgba(2,6,23,0.35);}
-
-    /* stats grid */
-    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:stretch}
-    .stat-tile{background:var(--panel);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 10px 30px rgba(2,6,23,0.55);transition:transform .12s ease,box-shadow .12s ease;height:100%;}
-    .stat-tile:hover{transform:translateY(-6px);box-shadow:0 28px 60px rgba(2,6,23,0.75)}
-    .stat-icon{width:56px;height:56px;border-radius:12px;background:rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-    .stat-body{flex:1;min-width:0}
-    .stat-num{font-weight:800;font-size:1.6rem;color:#fff}
-    .stat-label{color:var(--muted);margin-top:6px;font-size:.95rem}
-    .stat-spark{width:120px;height:44px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-
-    /* two column layout for main content - both columns will stretch to same height */
-    .main-grid{display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start}
-    /* make direct children of left column flex column so inner cards can stretch */
-    .main-left, aside {display:flex;flex-direction:column;gap:18px}
-    .card{background:var(--panel);border-radius:12px;padding:18px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 12px 40px rgba(0,0,0,0.6);display:flex;flex-direction:column}
-    .card h3{margin:0 0 8px 0}
-    .card .muted{color:var(--muted);font-size:.95rem;margin-bottom:12px}
-    /* allow a card to grow to fill column height */
-    .flex-fill{flex:1;display:flex;flex-direction:column}
-
-    /* recent list */
-    .recent-list{display:flex;flex-direction:column;gap:10px;overflow:auto;padding-right:6px}
-    .recent-item{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
-    .recent-left{display:flex;gap:12px;align-items:center}
-    .badge{min-width:40px;height:40px;border-radius:999px;background:rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;color:var(--text);font-weight:800}
-    .recent-title{font-weight:800}
-    .recent-sub{color:var(--muted);font-size:.9rem;margin-top:6px;max-width:540px;word-break:break-word}
-
-    /* quick actions */
-    .quick-actions{display:flex;flex-direction:column;gap:10px}
-    .btn{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#fff;border:0;cursor:pointer;font-weight:700;text-decoration:none}
-    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text);padding:8px 12px;border-radius:8px;text-decoration:none}
-    .small-muted{color:var(--muted);font-size:.92rem}
-
-    /* recent courses list */
-    .courses-list{max-height:220px;overflow:auto;margin-top:8px;border-top:1px dashed rgba(255,255,255,0.02);padding-top:8px}
-    .course-row{display:flex;justify-content:space-between;padding:8px 6px;border-bottom:1px dashed rgba(255,255,255,0.02);align-items:center}
-    .course-row:last-child{border-bottom:0}
-
-    /* responsive */
-    @media (max-width:1100px){
-      .stats-grid{grid-template-columns:repeat(2,1fr)}
-      .main-grid{grid-template-columns:1fr;align-items:stretch}
-      .stat-spark{display:none}
-    }
-    @media (max-width:520px){
-      .stats-grid{grid-template-columns:1fr}
-      .stat-icon{width:48px;height:48px}
-    }
-
-    /* tiny helpers */
-    .muted-muted{color:var(--muted);font-size:.9rem}
-  </style>
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .admin-pro-grid { 
+                grid-template-columns: 1fr; /* Susun lajur secara menegak */
+            }
+        }
+        @media (max-width: 768px) {
+            .admin-pro-stats-grid { 
+                grid-template-columns: 1fr 1fr; /* 2 kad sebaris */
+            }
+        }
+        @media (max-width: 500px) {
+            .admin-pro-stats-grid { 
+                grid-template-columns: 1fr; /* 1 kad sebaris */
+            }
+        }
+    </style>
 </head>
 <body>
-<main class="admin-main">
-  <div class="content">
-    <div class="topbar">
-      <div>
-        <h1 class="page-title">Admin Dashboard</h1>
-        <p class="subtitle">Overview of classes, courses, departments and students — quick insights and recent activity.</p>
-      </div>
-      <div class="actions-row">
-        <a href="classes.php" class="btn" title="Manage classes">Manage Classes</a>
-        <a href="courses.php" class="btn-ghost" title="Manage courses">Manage Courses</a>
-      </div>
-    </div>
-
-    <!-- Stats hero -->
-    <section class="stats-hero" aria-label="Top summary">
-      <div class="stats-grid" role="list">
-        <div class="stat-tile" role="listitem" aria-label="Total classes">
-          <div class="stat-icon" aria-hidden>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dbeafe" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="5" rx="1"></rect>
-              <rect x="3" y="15" width="18" height="5" rx="1"></rect>
-              <rect x="3" y="9.5" width="18" height="5" rx="1" opacity="0.7"></rect>
-            </svg>
-          </div>
-          <div class="stat-body">
-            <div class="stat-num"><?= e($totalClasses) ?></div>
-            <div class="stat-label">Total Classes</div>
-          </div>
-          <div class="stat-spark" aria-hidden>
-            <svg viewBox="0 0 100 36" preserveAspectRatio="none" style="width:100%;height:100%">
-              <?php
-                $d = $activity['classes']; $len = count($d); $max = max($d); $min = min($d); $pts = [];
-                for ($i=0;$i<$len;$i++){
-                  $x = ($i/($len-1))*100;
-                  $y = 36 - (($d[$i]-$min)/max(1, $max-$min))*28 - 4;
-                  $pts[] = "$x,$y";
-                }
-              ?>
-              <polyline fill="none" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round" points="<?= implode(' ', $pts) ?>"></polyline>
-            </svg>
-          </div>
+    <main class="admin-main">
+    
+        <div class="header-bar" style="margin-bottom: 20px;">
+            <h1 style="font-size: 2rem; margin: 0; color: #fff;">Hello <?= e($firstName) ?>, Welcome back!</h1>
+            <p style="color: var(--muted); margin-top: 5px; font-size: 1.1rem;">
+                <?= date("l, j F Y") ?> 
+            </p>
         </div>
 
-        <div class="stat-tile" role="listitem" aria-label="Total courses">
-          <div class="stat-icon" aria-hidden>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dbeafe" stroke-width="1.6">
-              <path d="M4 6h16M4 12h16M4 18h10"></path>
-            </svg>
-          </div>
-          <div class="stat-body">
-            <div class="stat-num"><?= e($totalCourses) ?></div>
-            <div class="stat-label">Total Courses</div>
-          </div>
-          <div class="stat-spark" aria-hidden>
-            <svg viewBox="0 0 100 36" preserveAspectRatio="none"><polyline fill="none" stroke="#8bd7ff" stroke-width="2" points="0,28 20,22 40,18 60,20 80,14 100,16"></polyline></svg>
-          </div>
-        </div>
-
-        <div class="stat-tile" role="listitem" aria-label="Departments">
-          <div class="stat-icon" aria-hidden>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dbeafe" stroke-width="1.6">
-              <circle cx="12" cy="8" r="2"></circle><path d="M6 20v-3a4 4 0 014-4h4a4 4 0 014 4v3"></path>
-            </svg>
-          </div>
-          <div class="stat-body">
-            <div class="stat-num"><?= e($totalDepts) ?></div>
-            <div class="stat-label">Departments</div>
-          </div>
-          <div class="stat-spark" aria-hidden>
-            <svg viewBox="0 0 100 36" preserveAspectRatio="none"><polyline fill="none" stroke="#6ee7b7" stroke-width="2" points="0,28 25,26 50,20 75,18 100,12"></polyline></svg>
-          </div>
-        </div>
-
-        <div class="stat-tile" role="listitem" aria-label="Students">
-          <div class="stat-icon" aria-hidden>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dbeafe" stroke-width="1.6">
-              <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path>
-              <path d="M6 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1"></path>
-            </svg>
-          </div>
-          <div class="stat-body">
-            <div class="stat-num"><?= e($totalStudents) ?></div>
-            <div class="stat-label">Students</div>
-          </div>
-          <div class="stat-spark" aria-hidden>
-            <?php
-              $d = $activity['students']; $len = count($d); $max = max($d); $min = min($d); $pts=[];
-              for ($i=0;$i<$len;$i++){ $x = ($i/($len-1))*100; $y = 36 - (($d[$i]-$min)/max(1,$max-$min))*28 - 4; $pts[]="$x,$y"; }
-            ?>
-            <svg viewBox="0 0 100 36" preserveAspectRatio="none"><polyline fill="none" stroke="#f6c35e" stroke-width="2" points="<?= implode(' ', $pts) ?>"></polyline></svg>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Main content (left & right columns equal height behavior) -->
-    <section class="main-grid" style="margin-top:6px">
-      <div class="main-left">
-        <div class="card flex-fill">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div>
-              <h3>Recent Classes</h3>
-              <div class="muted">Latest created or updated classes</div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <a href="classes.php" class="btn-ghost">View all</a>
-              <a href="classes.php#openAddBtn" class="btn">Add Class</a>
-            </div>
-          </div>
-
-          <div style="margin-top:14px;flex:1;display:flex;flex-direction:column;min-height:140px">
-            <?php if (empty($recentClasses)): ?>
-              <div class="muted-muted" style="padding:36px;text-align:center;margin:auto">No classes yet.</div>
-            <?php else: ?>
-              <div class="recent-list" style="margin-top:6px">
-                <?php foreach ($recentClasses as $c):
-                    $title = $c['Class_Name'] ?: ('#' . ($c['ClassID'] ?? '—'));
-                    $meta  = trim(($c['course_name'] ? $c['course_name'] : '') . ($c['dept_name'] ? " — {$c['dept_name']}" : ''));
-                    $sem   = $c['Semester'] ?? '-';
-                ?>
-                  <div class="recent-item">
-                    <div class="recent-left">
-                      <div class="badge"><?= e($sem) ?></div>
-                      <div>
-                        <div class="recent-title"><?= e($title) ?></div>
-                        <div class="recent-sub"><?= e($meta ?: '—') ?></div>
-                      </div>
+        <div class="admin-pro-stats-grid">
+            
+            <div class="admin-pro-stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon bg-purple">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A1.875 1.875 0 0118 22.5h-12a1.875 1.875 0 01-1.499-2.382z" /></svg>
                     </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-                      <div style="display:flex;gap:8px">
-                        <a class="btn-ghost" href="classes.php?view=<?= urlencode($c['ClassID']) ?>">View</a>
-                        <a class="btn-ghost" href="classes.php?edit=<?= urlencode($c['ClassID']) ?>">Edit</a>
-                      </div>
-                      <div class="small-muted"><?= e(!empty($c['UpdatedAt']) ? date('d M Y', strtotime($c['UpdatedAt'])) : '') ?></div>
+                    <div class="stat-card-info">
+                        <div class="label">Total Student</div>
+                        <div class="value"><?= e($totalStudents) ?> / <?= e($studentGoal) ?></div>
                     </div>
-                  </div>
-                <?php endforeach; ?>
-              </div>
-            <?php endif; ?>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top:14px">
-          <h3>Recent Courses</h3>
-          <div class="muted">Latest courses added</div>
-          <div class="courses-list" style="margin-top:8px">
-            <?php if (empty($recentCourses)): ?>
-              <div class="muted-muted" style="padding:18px">No courses yet.</div>
-            <?php else: foreach ($recentCourses as $rc): ?>
-              <div class="course-row">
-                <div style="font-weight:700"><?= e($rc['Course_Name']) ?></div>
-                <div class="small-muted"><?= e($rc['CourseID']) ?></div>
-              </div>
-            <?php endforeach; endif; ?>
-          </div>
-        </div>
-      </div>
-
-      <aside>
-        <div class="card flex-fill">
-          <h3>Quick Actions</h3>
-          <div class="muted">Common admin tasks</div>
-
-          <div class="quick-actions" style="margin-top:12px">
-            <a href="classes.php#openAddBtn" class="btn">＋ Add Class</a>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <a href="courses.php" class="btn-ghost">Courses</a>
-              <a href="departments.php" class="btn-ghost">Departments</a>
-            </div>
-
-            <div style="margin-top:10px">
-              <div class="small-muted">System health</div>
-              <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-                <div style="flex:1">
-                  <div style="height:10px;background:rgba(255,255,255,0.03);border-radius:999px;overflow:hidden">
-                    <div style="width:65%;height:100%;background:linear-gradient(90deg,var(--accent1),var(--accent2))"></div>
-                  </div>
                 </div>
-                <div class="small-muted" style="min-width:56px;text-align:right">65% used</div>
-              </div>
+                <div class="stat-card-progress">
+                    <div class="stat-card-progress-inner bg-purple" style="width: <?= e($studentPercent) ?>%;"></div>
+                </div>
             </div>
 
-            <div style="margin-top:12px;flex:1;display:flex;flex-direction:column">
-              <div class="small-muted">Recent courses (top)</div>
-              <div style="margin-top:8px;overflow:auto">
-                <?php if (empty($recentCourses)): ?>
-                  <div class="muted-muted">No courses yet.</div>
-                <?php else: foreach ($recentCourses as $rc): ?>
-                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.02)">
-                    <div style="font-weight:700"><?= e($rc['Course_Name']) ?></div>
-                    <div class="small-muted"><?= e($rc['CourseID']) ?></div>
-                  </div>
-                <?php endforeach; endif; ?>
-              </div>
+            <div class="admin-pro-stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon bg-blue">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" /></svg>
+                    </div>
+                    <div class="stat-card-info">
+                        <div class="label">Total Class</div>
+                        <div class="value"><?= e($totalClasses) ?> / <?= e($classGoal) ?></div>
+                    </div>
+                </div>
+                <div class="stat-card-progress">
+                    <div class="stat-card-progress-inner bg-blue" style="width: <?= e($classPercent) ?>%;"></div>
+                </div>
             </div>
-          </div>
+
+            <div class="admin-pro-stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon bg-green">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+                    </div>
+                    <div class="stat-card-info">
+                        <div class="label">Total Course</div>
+                        <div class="value"><?= e($totalCourses) ?> / <?= e($courseGoal) ?></div>
+                    </div>
+                </div>
+                <div class="stat-card-progress">
+                    <div class="stat-card-progress-inner bg-green" style="width: <?= e($coursePercent) ?>%;"></div>
+                </div>
+            </div>
+
+            <div class="admin-pro-stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon bg-pink">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6.75M9 11.25h6.75M9 15.75h6.75M9 20.25h6.75M3.75 6.75h.008v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 11.25h.008v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 15.75h.008v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 20.25h.008v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                    </div>
+                    <div class="stat-card-info">
+                        <div class="label">Total Department</div>
+                        <div class="value"><?= e($totalDepts) ?> / <?= e($deptGoal) ?></div>
+                    </div>
+                </div>
+                <div class="stat-card-progress">
+                    <div class="stat-card-progress-inner bg-pink" style="width: <?= e($deptPercent) ?>%;"></div>
+                </div>
+            </div>
+            
         </div>
 
-        <div style="height:12px"></div>
+        <div class="admin-pro-grid">
+        
+            <div class="main-column">
+                
+                <div class="card">
+                    <h3>Student Activity</h3>
+                    <p class="muted" style="margin-bottom: 16px;">New student registrations over the last 12 months.</p>
+                    <div class="chart-container">
+                        <canvas id="studentActivityChart"></canvas>
+                    </div>
+                </div>
 
-        <div class="card">
-          <h3>Tips</h3>
-          <div class="muted">Shortcuts & best practices</div>
-          <ul style="margin-top:10px;color:var(--muted);padding-left:18px">
-            <li>Use the <strong>Export</strong> feature to back up student lists.</li>
-            <li>Keep course codes consistent to avoid duplication.</li>
-            <li>Soft-delete students where possible to allow restoring.</li>
-          </ul>
+                <div class="card" style="margin-top: 20px;">
+                    <h3>Recent Students</h3>
+                    <div class="admin-pro-list-group">
+                        <?php if (empty($recentStudents)): ?>
+                            <p style="color: var(--muted);">No new students found.</p>
+                        <?php else: ?>
+                            <?php foreach ($recentStudents as $student): ?>
+                            <div class="admin-pro-list-item">
+                                <div class="list-item-info">
+                                    <div class="list-item-avatar">
+                                        <?php $avatarUrl = resolve_avatar_url($student['Profile_Image']); ?>
+                                        <?php if ($avatarUrl): ?>
+                                            <img src="<?= e($avatarUrl) ?>" alt="Avatar">
+                                        <?php else: ?>
+                                            <span><?= e(initials_for_nav($student['Display_Name'])) ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div>
+                                        <div class="name"><?= e($student['Display_Name']) ?></div>
+                                        <div class="meta"><?= e($student['Email']) ?></div>
+                                    </div>
+                                </div>
+                                <a href="edit_student.php?id=<?= e($student['UserID']) ?>" class="btn btn-ghost">View</a>
+                            </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+            </div>
+            
+            <aside class="sidebar-column">
+
+                <div class="card">
+                    <h3>Course Statistic</h3>
+                    <p class="muted" style="margin-bottom: 16px;">Distribution of courses per department.</p>
+                    <div class="chart-container" style="height: 250px;">
+                        <canvas id="courseStatisticChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 20px;">
+                    <h3>Recent Courses</h3>
+                    <div class="admin-pro-list-group">
+                        <?php if (empty($recentCourses)): ?>
+                            <p style="color: var(--muted);">No courses found.</p>
+                        <?php else: ?>
+                            <?php foreach ($recentCourses as $course): ?>
+                            <div class="admin-pro-list-item">
+                                <div>
+                                    <div class="name"><?= e($course['Course_Name']) ?></div>
+                                    <div class="meta">ID: <?= e($course['CourseID']) ?></div>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+            </aside>
         </div>
-      </aside>
-    </section>
+        
+    </main>
 
-    <footer style="color:var(--muted);font-size:.9rem;padding:8px 0">
-      © <?= date('Y') ?> Your Institution · Admin panel
-    </footer>
-  </div>
-</main>
+    <script>
+    // Tunggu sehingga DOM sedia dan Chart.js dimuatkan
+    window.addEventListener('DOMContentLoaded', () => {
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js not loaded.');
+            return;
+        }
+        
+        // Tetapan Am Carta
+        Chart.defaults.color = 'var(--muted)';
+        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+
+        /*
+         * 1. CARTA AKTIVITI PELAJAR (Line Chart)
+         */
+        const studentChartCtx = document.getElementById('studentActivityChart');
+        if (studentChartCtx) {
+            const studentGradient = studentChartCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+            studentGradient.addColorStop(0, 'rgba(124, 58, 237, 0.4)');
+            studentGradient.addColorStop(1, 'rgba(124, 58, 237, 0.01)');
+            
+            new Chart(studentChartCtx, {
+                type: 'line',
+                data: {
+                    labels: <?= $studentTrendLabels ?>,
+                    datasets: [{
+                        label: 'New Students',
+                        data: <?= $studentTrendValues ?>,
+                        borderColor: 'var(--accent-purple)',
+                        backgroundColor: studentGradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: 'var(--accent-purple)',
+                        pointBorderColor: '#fff',
+                        pointHoverRadius: 6,
+                        pointRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { precision: 0 }
+                        },
+                        x: { 
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        /*
+         * 2. CARTA STATISTIK KURSUS (Donut Chart)
+         */
+        const courseChartCtx = document.getElementById('courseStatisticChart');
+        if (courseChartCtx) {
+            new Chart(courseChartCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: <?= $jsDeptLabels ?>,
+                    datasets: [{
+                        label: 'Courses',
+                        data: <?= $jsDeptValues ?>,
+                        backgroundColor: [
+                            'var(--accent-purple)',
+                            'var(--accent-blue)',
+                            'var(--accent-green)',
+                            'var(--accent-pink)',
+                            'var(--accent-red)',
+                            'var(--accent-orange)'
+                        ],
+                        borderColor: 'var(--panel-pro)',
+                        borderWidth: 4,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                boxWidth: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+    </script>
+
 </body>
 </html>
