@@ -136,7 +136,7 @@ $jsGpaBuckets = json_encode(array_values($gpaBuckets) ?: [0,0,0,0]);
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Admin Dashboard — Analytics</title>
+  <title>Admin Dashboard</title>
   <link rel="icon" href="../img/favicon.png" type="image/png">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="../style.css" media="screen">
@@ -435,7 +435,7 @@ background-color: #0f1724 !important;}
       </aside>
     </section>
 
-    <footer style="color:var(--muted);font-size:.9rem;padding-top:12px">© <?= date('Y') ?> Your Institution · Admin panel</footer>
+    <footer style="color:var(--muted);font-size:.9rem;padding-top:12px">© <?= date('Y') ?> German-Malaysian Institute · Admin panel</footer>
   </div>
 </main>
 

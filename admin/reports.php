@@ -269,7 +269,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-famil
 .center-box{max-width:1200px;margin:0 auto;}
 .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .header h1{margin:0}
-.card{background:linear-gradient(180deg,var(--card),#07111a);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 48px rgba(0,0,0,0.6);}
+.card{background:linear-gradient(180deg,var(--card),#07111a) !important;border-radius:12px;max-width:1000px !important; padding:1px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 48px rgba(0,0,0,0.6) !important;}
 .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:16px}
 .tile{grid-column:span 3;padding:14px;border-radius:12px;display:flex;align-items:center;gap:12px;background:linear-gradient(180deg, rgba(255,255,255,0.012), transparent);border:1px solid rgba(255,255,255,0.02)}
 .tile .num{font-weight:800;font-size:1.6rem}
@@ -278,8 +278,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-famil
 .btn{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#fff;padding:8px 12px;border-radius:10px;border:0;cursor:pointer;text-decoration:none;font-weight:700}
 .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text);padding:8px 12px;border-radius:10px}
 .section{display:flex;gap:16px;align-items:flex-start}
-.left{width:420px}
-.right{flex:1}
+.left{width:auto}
+.right{flex:3; ,}
 .preview-list{margin-top:12px}
 .preview-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,0.02)}
 .preview-row:last-child{border-bottom:0}
@@ -343,29 +343,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-famil
 
     <div class="section">
       <div class="left">
-        <div class="card">
-          <strong>Quick exports</strong>
-          <div class="small" style="margin-top:6px">Download CSV files of the requested dataset. CSV is UTF-8 with BOM for Excel compatibility.</div>
-
-          <form method="post" class="export-form" style="margin-top:12px">
-            <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-            <input type="hidden" name="action" value="export">
-            <button class="btn" name="type" value="classes" type="submit">Export Classes CSV</button>
-            <button class="btn" name="type" value="courses" type="submit">Export Courses CSV</button>
-            <button class="btn" name="type" value="students" type="submit">Export Students CSV</button>
-            <button class="btn" name="type" value="departments" type="submit">Export Departments CSV</button>
-            <button class="btn ghost" name="type" value="all" type="submit">Export Combined</button>
-          </form>
-
-          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" id="btnExportPDF">Export PDF (printable)</button>
-            <button class="btn ghost" id="btnPrint" onclick="window.print()">Print</button>
-          </div>
-
-          <div class="csv-note">Tip: Use <strong>Export Combined</strong> to get a single CSV containing classes, courses and students in sections.</div>
-        </div>
-
-        <div style="height:12px"></div>
+        
+        
 
         <div class="card">
           <strong>Top departments (by course count)</strong>
@@ -399,10 +378,35 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-famil
             <?php endforeach; endif; ?>
           </div>
         </div>
+
+        <div style="height:15px"></div>
+
+        <div class="card">
+          <strong>Quick exports</strong>
+          <div class="small" style="margin-top:6px">Download CSV files of the requested dataset. CSV is UTF-8 with BOM for Excel compatibility.</div>
+
+          <form method="post" class="export-form" style="margin-top:12px">
+            <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+            <input type="hidden" name="action" value="export">
+            <button class="btn" name="type" value="classes" type="submit">Export Classes CSV</button>
+            <button class="btn" name="type" value="courses" type="submit">Export Courses CSV</button>
+            <button class="btn" name="type" value="students" type="submit">Export Students CSV</button>
+            <button class="btn" name="type" value="departments" type="submit">Export Departments CSV</button>
+            <button class="btn ghost" name="type" value="all" type="submit">Export Combined</button>
+          </form>
+
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="btnExportPDF">Export PDF (printable)</button>
+            <button class="btn ghost" id="btnPrint" onclick="window.print()">Print</button>
+          </div>
+
+          <div class="csv-note">Tip: Use <strong>Export Combined</strong> to get a single CSV containing classes, courses and students in sections.</div>
+        </div>
+
       </div>
 
       <div class="right">
-        <div class="card" id="printArea">
+        <div class="card" id="printArea" style="width: 700px !important;">
           <div class="viewer-controls">
             <div>
               <div style="font-weight:700;font-size:1.05rem">Preview — Paginated</div>
