@@ -278,6 +278,7 @@ body{margin:0;color:var(--text);font-family:Inter,system-ui,Arial,sans-serif;-we
 </style>
 </head>
 <body style="background-color:#0f1724;">
+<link rel="icon" href="/..img/favicon.png" type="image/png">
 <?php include __DIR__ . '/admin_nav.php'; ?>
 
 <main class="admin-main">
